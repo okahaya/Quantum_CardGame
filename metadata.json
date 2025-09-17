@@ -1,0 +1,5 @@
+{
+  "name": "Quantum Gate: The Card Game",
+  "description": "A strategic digital card game based on the principles of quantum computing. Players use quantum gate cards to manipulate qubit states and outmaneuver their opponent.",
+  "requestFramePermissions": []
+}
