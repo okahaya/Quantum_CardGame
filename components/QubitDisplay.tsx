@@ -1,37 +1,49 @@
+
 import React from 'react';
-import { QubitState, QubitPhysicalState, AwaitingTargetInfo } from '../types';
+import { QubitDisplayState } from '../types';
 
 interface QubitDisplayProps {
-  qubit: QubitState;
+  qubitId: number;
+  displayState: QubitDisplayState;
   playerId: string;
   onSelectQubit: (playerId: string, qubitId: number) => void;
-  awaitingTarget: AwaitingTargetInfo | null;
   isValidTarget: boolean;
   isOpponent: boolean;
+  selectedRole?: string;
 }
 
-// FIX: Explicitly type `stateStyles` to make the `animation` property optional. This resolves a TypeScript error where `animation` was not defined for all physical states.
-const stateStyles: { [key in QubitPhysicalState]: { color: string; shadow: string; animation?: string } } = {
-  [QubitPhysicalState.Zero]: { color: 'bg-blue-500', shadow: 'shadow-blue-400' },
-  [QubitPhysicalState.One]: { color: 'bg-red-500', shadow: 'shadow-red-400' },
-  [QubitPhysicalState.Superposition]: { color: 'bg-purple-500', shadow: 'shadow-purple-400', animation: 'animate-pulse' }
+const stateStyles: { [key in QubitDisplayState]: { color: string; shadow: string; animation?: string } } = {
+  [QubitDisplayState.Zero]: { color: 'bg-blue-500', shadow: 'shadow-blue-400' },
+  [QubitDisplayState.One]: { color: 'bg-red-500', shadow: 'shadow-red-400' },
+  [QubitDisplayState.Superposition]: { color: 'bg-purple-500', shadow: 'shadow-purple-400', animation: 'animate-pulse' }
 };
 
-export const QubitDisplay: React.FC<QubitDisplayProps> = ({ qubit, playerId, onSelectQubit, awaitingTarget, isValidTarget, isOpponent }) => {
-  const { physicalState, id, entangledWith } = qubit;
-  const styles = stateStyles[physicalState];
-  
-  const isSelectable = !!awaitingTarget;
+export const QubitDisplay: React.FC<QubitDisplayProps> = ({ qubitId, displayState, playerId, onSelectQubit, isValidTarget, isOpponent, selectedRole }) => {
+  const styles = stateStyles[displayState];
 
   const getRingClasses = () => {
-    if (!isSelectable) return 'ring-transparent';
-    if (isValidTarget) return 'ring-green-400 animate-pulse';
-    return 'ring-yellow-400/50';
+    if (selectedRole) {
+      return isOpponent ? 'ring-red-400' : 'ring-yellow-400';
+    }
+    if (isValidTarget) {
+      return isOpponent ? 'ring-purple-400 animate-pulse' : 'ring-green-400 animate-pulse';
+    }
+    return 'ring-transparent';
+  }
+  
+  const getRoleLabel = () => {
+      if (!selectedRole) return null;
+      if (selectedRole.toLowerCase().includes('control')) return 'C';
+      if (selectedRole.toLowerCase().includes('target')) return 'T';
+      if (selectedRole.toLowerCase().includes('qubit')) return selectedRole.split(' ')[1]; // 'A' or 'B'
+      return selectedRole[0];
   }
 
+  const roleLabel = getRoleLabel();
+
   const handleClick = () => {
-    if (isSelectable && isValidTarget) {
-      onSelectQubit(playerId, id);
+    if (isValidTarget) {
+      onSelectQubit(playerId, qubitId);
     }
   };
 
@@ -40,17 +52,19 @@ export const QubitDisplay: React.FC<QubitDisplayProps> = ({ qubit, playerId, onS
       <div
         onClick={handleClick}
         className={`relative w-16 h-16 md:w-24 md:h-24 rounded-full flex items-center justify-center transition-all duration-300
-                    ${styles.color} ${styles.animation || ''} shadow-lg ${styles.shadow} ring-4
+                    ${styles.color} ${styles.animation || ''} shadow-lg ${styles.shadow} ring-4 border-4 border-transparent
                     ${isValidTarget ? 'cursor-pointer scale-110 hover:ring-green-300' : ''}
-                    ${getRingClasses()}
-                    ${entangledWith ? 'border-4 border-dashed border-pink-400' : 'border-4 border-transparent'}`}
+                    ${selectedRole ? 'scale-110' : ''}
+                    ${getRingClasses()}`}
       >
-        <span className="text-2xl md:text-4xl font-bold text-white" style={{textShadow: '0 0 5px black'}}>{physicalState}</span>
-        {entangledWith && 
-            <div className="absolute -top-1 -right-1 md:-top-2 md:-right-2 text-xs bg-pink-500 rounded-full w-5 h-5 md:w-6 md:h-6 flex items-center justify-center">🔗</div>
-        }
+        <span className="text-2xl md:text-4xl font-bold text-white" style={{textShadow: '0 0 5px black'}}>{displayState}</span>
+        {roleLabel && (
+            <div className={`absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg border-2 ${isOpponent ? 'bg-red-600 border-red-300' : 'bg-yellow-600 border-yellow-300'}`}>
+                {roleLabel}
+            </div>
+        )}
       </div>
-      <span className="text-xs md:text-sm text-gray-400">{isOpponent ? 'Opp' : 'Your'} Q{id + 1}</span>
+      <span className="text-xs md:text-sm text-gray-400">{isOpponent ? 'Opp' : 'Your'} Q{qubitId + 1}</span>
     </div>
   );
 };

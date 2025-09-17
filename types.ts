@@ -1,34 +1,29 @@
 
 export interface CardData {
   id: string;
+  instanceId?: string; // Unique identifier for each card instance
   name: string;
   symbol: string;
   description: string;
   cost: number;
   type: 'single' | 'two' | 'three';
   targets: number; 
-  targetOpponent: boolean; 
+  roles?: string[]; // e.g. ['Control', 'Target']
 }
 
-export enum QubitPhysicalState {
+// This is now purely for display purposes. The true state is in the stateVector.
+export enum QubitDisplayState {
   Zero = '|0⟩',
   One = '|1⟩',
   Superposition = '|Ψ⟩',
 }
 
-export interface QubitState {
-  id: number;
-  physicalState: QubitPhysicalState;
-  entangledWith: { playerId: string; qubitId: number } | null;
-}
-
 export interface PlayerState {
   id:string;
   name: string;
-  qubits: QubitState[];
+  stateVector: number[]; // Represents the quantum state of all qubits
   deck: CardData[];
   hand: CardData[];
-  discard: CardData[];
   mana: number;
   maxMana: number;
 }
@@ -46,19 +41,13 @@ export interface AwaitingTargetInfo {
     sourcePlayerId: string;
     targetsAcquired: { playerId: string; qubitId: number }[];
     prompt?: string;
-}
-
-export interface CircuitGate {
-  id: string;
-  turn: number;
-  card: CardData;
-  sourcePlayerId: string;
-  targets: { playerId: string; qubitId: number }[];
+    actionNumber: number; // 1 or 2
 }
 
 export interface GameSettings {
     qubitCount: number;
     cardViewMode: 'basic' | 'advanced';
+    debugMode: boolean;
 }
 
 export interface GameState {
@@ -68,11 +57,11 @@ export interface GameState {
   gamePhase: GamePhase;
   currentPlayerId: string;
   turn: number;
+  actionsTaken: number; // New for two-action turns
   winner: string | null;
   log: string[];
   awaitingTarget: AwaitingTargetInfo | null;
   isCpuThinking: boolean;
-  circuitHistory: CircuitGate[];
   settings: GameSettings;
 }
 
@@ -90,6 +79,5 @@ export type GameAction =
   | { type: 'END_TURN' }
   | { type: 'CPU_THINKING_START' }
   | { type: 'CPU_THINKING_END' }
-  | { type: 'CPU_PERFORM_MOVE'; move: Move | null }
-  | { type: 'CPU_PERFORM_SETUP_MOVES'; moves: AwaitingTargetInfo[] }
+  | { type: 'CPU_PERFORM_ACTION' }
   | { type: 'LOG_MESSAGE'; message: string };

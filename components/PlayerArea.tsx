@@ -2,7 +2,7 @@
 import React from 'react';
 import { PlayerState, AwaitingTargetInfo, GameState } from '../types';
 import { QubitDisplay } from './QubitDisplay';
-import { isValidTarget } from '../hooks/useGameLogic';
+import { isValidTarget, getDisplayStateForQubit } from '../hooks/useGameLogic';
 
 interface PlayerAreaProps {
   player: PlayerState;
@@ -21,12 +21,13 @@ const InfoDisplay: React.FC<{ label: string; value: string | number }> = ({ labe
 
 
 export const PlayerArea: React.FC<PlayerAreaProps> = ({ player, isOpponent, onSelectQubit, awaitingTarget, gameState }) => {
+  const qubitCount = gameState.settings.qubitCount;
+
   return (
     <div className={`flex items-center justify-between w-full p-2 rounded-lg transition-all duration-300 ${isOpponent ? 'flex-row-reverse' : ''}`}>
       <div className={`flex gap-2 md:gap-4 items-center ${isOpponent ? 'flex-row-reverse' : ''}`}>
         <div className="flex flex-col gap-2">
             <InfoDisplay label="Deck" value={player.deck.length} />
-            <InfoDisplay label="Discard" value={player.discard.length} />
         </div>
          <div className="flex flex-col gap-2 items-center">
             <h2 className="text-lg md:text-2xl font-bold text-gray-300">{player.name}</h2>
@@ -35,17 +36,24 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({ player, isOpponent, onSe
       </div>
       
       <div className="flex gap-2 md:gap-4 flex-wrap justify-end max-w-[60%]">
-        {player.qubits.map(qubit => (
-          <QubitDisplay
-            key={qubit.id}
-            qubit={qubit}
-            playerId={player.id}
-            onSelectQubit={onSelectQubit}
-            awaitingTarget={awaitingTarget}
-            isValidTarget={isValidTarget(player.id, qubit.id, awaitingTarget, gameState)}
-            isOpponent={isOpponent}
-          />
-        ))}
+        {Array.from({ length: qubitCount }).map((_, qubitId) => {
+          const displayState = getDisplayStateForQubit(player.stateVector, qubitId, qubitCount);
+          const targetIndex = awaitingTarget?.targetsAcquired.findIndex(t => t.playerId === player.id && t.qubitId === qubitId);
+          const selectedRole = (targetIndex !== -1 && awaitingTarget?.card.roles) ? awaitingTarget.card.roles[targetIndex!] : undefined;
+
+          return (
+            <QubitDisplay
+              key={qubitId}
+              qubitId={qubitId}
+              displayState={displayState}
+              playerId={player.id}
+              onSelectQubit={onSelectQubit}
+              isValidTarget={isValidTarget(player.id, qubitId, awaitingTarget, gameState)}
+              isOpponent={isOpponent}
+              selectedRole={selectedRole}
+            />
+          );
+        })}
       </div>
     </div>
   );

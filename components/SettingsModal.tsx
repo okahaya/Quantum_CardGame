@@ -25,6 +25,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     const handleViewModeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSettings(s => ({ ...s, cardViewMode: e.target.checked ? 'advanced' : 'basic' }));
     };
+    
+    const handleDebugModeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSettings(s => ({ ...s, debugMode: e.target.checked }));
+    };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -49,13 +53,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 </div>
 
                 {/* Card View Mode Toggle */}
-                <div className="mb-8">
+                <div className="mb-6">
                     <label className="flex items-center justify-between cursor-pointer">
                         <span className="text-lg">Advanced Card View <span className="text-sm text-gray-400">(Symbols only)</span></span>
                         <div className="relative">
                             <input type="checkbox" className="sr-only" checked={settings.cardViewMode === 'advanced'} onChange={handleViewModeChange} />
                             <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
                             <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${settings.cardViewMode === 'advanced' ? 'transform translate-x-6 bg-cyan-400' : ''}`}></div>
+                        </div>
+                    </label>
+                </div>
+                
+                 {/* Debug Mode Toggle */}
+                <div className="mb-8">
+                    <label className="flex items-center justify-between cursor-pointer">
+                        <span className="text-lg">Debug Mode</span>
+                        <div className="relative">
+                            <input type="checkbox" className="sr-only" checked={settings.debugMode} onChange={handleDebugModeChange} />
+                            <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
+                            <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${settings.debugMode ? 'transform translate-x-6 bg-cyan-400' : ''}`}></div>
                         </div>
                     </label>
                 </div>

@@ -3,20 +3,22 @@ import React, { useState } from 'react';
 import { GameBoard } from './components/GameBoard';
 import { useGameLogic } from './hooks/useGameLogic';
 import { GameOverModal } from './components/GameOverModal';
-import { QuantumCircuitDisplay } from './components/QuantumCircuitDisplay';
 import { GameLogDisplay } from './components/GameLogDisplay';
 import { HomeScreen } from './components/HomeScreen';
 import { SettingsModal } from './components/SettingsModal';
+import { GameLogScreen } from './components/GameLogScreen';
 import { GameSettings } from './types';
-import { FaCog } from 'react-icons/fa'; // Using a popular icon library for the settings gear
+import { FaCog } from 'react-icons/fa';
 
 const App: React.FC = () => {
-  const [screen, setScreen] = useState<'HOME' | 'GAME'>('HOME');
+  const [screen, setScreen] = useState<'HOME' | 'GAME' | 'LOG'>('HOME');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [gameSettings, setGameSettings] = useState<GameSettings>({
     qubitCount: 3,
     cardViewMode: 'basic',
+    debugMode: false,
   });
+  const [lastGameLog, setLastGameLog] = useState<string[]>([]);
 
   const { gameState, dispatch, selectCard, selectQubit, endTurn, cancelTarget } = useGameLogic(gameSettings);
   
@@ -26,24 +28,32 @@ const App: React.FC = () => {
   };
   
   const handleGoHome = () => {
+      setLastGameLog(gameState.log); // Save the log from the completed game
       setScreen('HOME');
   };
 
   const handleSaveSettings = (newSettings: GameSettings) => {
     setGameSettings(newSettings);
     setIsSettingsOpen(false);
-    // If we are in-game, starting a new game is required for settings to apply
     if (screen === 'GAME') {
         dispatch({ type: 'START_GAME', settings: newSettings });
     }
   };
+  
+  const handleViewLog = () => {
+    if (lastGameLog.length > 0) {
+      setScreen('LOG');
+    }
+  }
 
   if (screen === 'HOME') {
     return (
       <>
         <HomeScreen 
           onStartGame={handleStartGame} 
-          onOpenSettings={() => setIsSettingsOpen(true)} 
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onViewLog={handleViewLog}
+          hasLog={lastGameLog.length > 0}
         />
         <SettingsModal
           isOpen={isSettingsOpen}
@@ -53,6 +63,16 @@ const App: React.FC = () => {
         />
       </>
     );
+  }
+  
+  if (screen === 'LOG') {
+      return (
+          <GameLogScreen 
+            log={lastGameLog} 
+            isDebugMode={gameSettings.debugMode}
+            onBack={() => setScreen('HOME')}
+          />
+      );
   }
 
   return (
@@ -86,7 +106,6 @@ const App: React.FC = () => {
         </div>
         
         <aside className="w-full lg:w-[400px] lg:max-w-[400px] shrink-0 h-[40vh] lg:h-full flex flex-col gap-4">
-          <QuantumCircuitDisplay circuitHistory={gameState.circuitHistory} qubitCount={gameSettings.qubitCount} />
           <GameLogDisplay log={gameState.log} awaitingTargetPrompt={gameState.awaitingTarget?.prompt} />
         </aside>
 

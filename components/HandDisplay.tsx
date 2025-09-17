@@ -10,22 +10,37 @@ interface HandDisplayProps {
   isSetupPhase: boolean;
   onSelectCard: (card: CardData) => void;
   cardViewMode: 'basic' | 'advanced';
+  selectedCard: CardData | undefined | null;
+  onCancelTarget: () => void;
+  actionsTaken: number;
 }
 
-export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, isSetupPhase, onSelectCard, cardViewMode }) => {
+export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, isSetupPhase, onSelectCard, cardViewMode, selectedCard, onCancelTarget, actionsTaken }) => {
 
   return (
     <div className="w-full h-full flex items-center">
       <div className="w-full flex gap-2 md:gap-4 overflow-x-auto pb-4 px-2">
-          {hand.map((card, index) => {
-            const isPlayable = isCurrentPlayer && (isSetupPhase || mana >= card.cost);
+          {hand.map((card) => {
+            const hasActions = isSetupPhase || actionsTaken < 2;
+            const isPlayable = isCurrentPlayer && hasActions && (isSetupPhase || mana >= card.cost);
+            const isSelected = selectedCard?.instanceId === card.instanceId;
+
+            const handleClick = () => {
+              if (!isPlayable || selectedCard) {
+                if(isSelected) onCancelTarget();
+                return;
+              };
+              onSelectCard(card);
+            };
+
             return (
-              <div key={`${card.id}-${index}`} className="shrink-0">
+              <div key={card.instanceId} className="shrink-0">
                 <CardDisplay
                   card={card}
                   isPlayable={isPlayable}
-                  onClick={() => isPlayable && onSelectCard(card)}
+                  onClick={handleClick}
                   cardViewMode={cardViewMode}
+                  isSelected={isSelected}
                 />
               </div>
             );
