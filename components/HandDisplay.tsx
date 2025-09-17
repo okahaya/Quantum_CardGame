@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CardData } from '../types';
 import { CardDisplay } from './CardDisplay';
@@ -8,9 +9,10 @@ interface HandDisplayProps {
   isCurrentPlayer: boolean;
   isSetupPhase: boolean;
   onSelectCard: (card: CardData) => void;
+  cardViewMode: 'basic' | 'advanced';
 }
 
-export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, isSetupPhase, onSelectCard }) => {
+export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, isSetupPhase, onSelectCard, cardViewMode }) => {
 
   return (
     <div className="w-full h-full flex items-center">
@@ -23,6 +25,7 @@ export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentP
                   card={card}
                   isPlayable={isPlayable}
                   onClick={() => isPlayable && onSelectCard(card)}
+                  cardViewMode={cardViewMode}
                 />
               </div>
             );

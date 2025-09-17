@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { GameState, CardData } from '../types';
 import { PlayerArea } from './PlayerArea';
@@ -11,9 +12,10 @@ interface GameBoardProps {
   onSelectQubit: (playerId: string, qubitId: number) => void;
   onEndTurn: () => void;
   onCancelTarget: () => void;
+  cardViewMode: 'basic' | 'advanced';
 }
 
-export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, onSelectQubit, onEndTurn, onCancelTarget }) => {
+export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, onSelectQubit, onEndTurn, onCancelTarget, cardViewMode }) => {
   const { players, currentPlayerId, awaitingTarget, turn, isCpuThinking } = gameState;
   const player1 = players[PLAYER1_ID];
   const player2 = players[PLAYER2_ID];
@@ -34,7 +36,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, o
           <div 
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-2"
           >
-            <CardDisplay card={awaitingTarget.card} isPlayable={false} onClick={() => {}} isPreview />
+            <CardDisplay card={awaitingTarget.card} isPlayable={false} onClick={() => {}} isPreview cardViewMode={cardViewMode} />
             <button 
               onClick={onCancelTarget}
               className="text-xs bg-red-800 hover:bg-red-700 px-3 py-1 rounded-lg shadow-md transition-all"
@@ -80,11 +82,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, o
         {/* Player 1 Hand */}
         <div className="mt-auto pt-4 h-44 md:h-52">
             <HandDisplay
-            hand={player1.hand}
-            onSelectCard={onSelectCard}
-            mana={player1.mana}
-            isCurrentPlayer={isPlayer1Turn}
-            isSetupPhase={isSetupPhase}
+              hand={player1.hand}
+              onSelectCard={onSelectCard}
+              mana={player1.mana}
+              isCurrentPlayer={isPlayer1Turn}
+              isSetupPhase={isSetupPhase}
+              cardViewMode={cardViewMode}
             />
         </div>
     </div>

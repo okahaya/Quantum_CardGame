@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { CardData } from '../types';
 
@@ -6,9 +7,10 @@ interface CardDisplayProps {
   isPlayable: boolean;
   onClick: () => void;
   isPreview?: boolean;
+  cardViewMode: 'basic' | 'advanced';
 }
 
-export const CardDisplay: React.FC<CardDisplayProps> = ({ card, isPlayable, onClick, isPreview = false }) => {
+export const CardDisplay: React.FC<CardDisplayProps> = ({ card, isPlayable, onClick, isPreview = false, cardViewMode }) => {
   const cardTypeColor = {
     'single': 'bg-blue-800',
     'two': 'bg-green-800',
@@ -35,8 +37,14 @@ export const CardDisplay: React.FC<CardDisplayProps> = ({ card, isPlayable, onCl
         </div>
       </div>
       
-      <p className={`text-gray-300 my-1 md:my-2 ${isPreview ? 'text-sm' : 'text-xs'}`}>{card.description}</p>
+      {cardViewMode === 'basic' && <p className={`text-gray-300 my-1 md:my-2 ${isPreview ? 'text-sm' : 'text-xs'}`}>{card.description}</p>}
       
+      {cardViewMode === 'advanced' && (
+        <div className="flex-grow flex items-center justify-center">
+            <span className="text-4xl md:text-5xl font-mono font-bold text-cyan-300" style={{textShadow: '0 0 4px #06b6d4'}}>{card.symbol}</span>
+        </div>
+      )}
+
       <div className={`text-xs text-center p-1 rounded-md text-white font-semibold ${cardTypeColor[card.type]}`}>
         {card.type}-Qubit Gate
       </div>

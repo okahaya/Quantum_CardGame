@@ -2,13 +2,13 @@
 import { CardData } from './types';
 
 export const ALL_CARDS: CardData[] = [
-  { id: 'h', name: 'Hadamard (H)', description: 'Puts a target qubit into a superposition state.', cost: 1, type: 'single', targets: 1, targetOpponent: true },
-  { id: 'x', name: 'Pauli-X (X)', description: 'Flips a target qubit\'s state (|0⟩ ↔ |1⟩). Collapses superposition.', cost: 1, type: 'single', targets: 1, targetOpponent: true },
-  { id: 'z', name: 'Pauli-Z (Z)', description: 'Flips the phase of a target qubit.', cost: 1, type: 'single', targets: 1, targetOpponent: true },
-  { id: 'cnot', name: 'CNOT', description: 'Uses your qubit as control to flip an opponent\'s qubit.', cost: 2, type: 'two', targets: 2, targetOpponent: true },
-  { id: 'swap', name: 'SWAP', description: 'Swaps one of your qubits with an opponent\'s qubit.', cost: 3, type: 'two', targets: 2, targetOpponent: true },
-  { id: 'measure', name: 'Measurement', description: 'Measures a qubit, collapsing superposition to |0⟩ or |1⟩.', cost: 2, type: 'single', targets: 1, targetOpponent: true },
-  { id: 'toffoli', name: 'Toffoli', description: 'Uses two of your qubits as controls to flip an opponent\'s qubit.', cost: 3, type: 'three', targets: 3, targetOpponent: true },
+  { id: 'h', name: 'Hadamard (H)', symbol: 'H', description: 'Puts a target qubit into a superposition state.', cost: 1, type: 'single', targets: 1, targetOpponent: true },
+  { id: 'x', name: 'Pauli-X (X)', symbol: 'X', description: 'Flips a target qubit\'s state (|0⟩ ↔ |1⟩). Collapses superposition.', cost: 1, type: 'single', targets: 1, targetOpponent: true },
+  { id: 'z', name: 'Pauli-Z (Z)', symbol: 'Z', description: 'Flips the phase of a target qubit.', cost: 1, type: 'single', targets: 1, targetOpponent: true },
+  { id: 'cnot', name: 'CNOT', symbol: 'CNOT', description: 'Uses your qubit as control to flip an opponent\'s qubit.', cost: 2, type: 'two', targets: 2, targetOpponent: true },
+  { id: 'swap', name: 'SWAP', symbol: 'SWAP', description: 'Swaps one of your qubits with an opponent\'s qubit.', cost: 3, type: 'two', targets: 2, targetOpponent: true },
+  { id: 'measure', name: 'Measurement', symbol: 'M', description: 'Measures a qubit, collapsing superposition to |0⟩ or |1⟩.', cost: 2, type: 'single', targets: 1, targetOpponent: true },
+  { id: 'toffoli', name: 'Toffoli', symbol: 'CCNOT', description: 'Uses two of your qubits as controls to flip an opponent\'s qubit.', cost: 3, type: 'three', targets: 3, targetOpponent: true },
 ];
 
 export const INITIAL_DECK_TEMPLATE: CardData[] = [

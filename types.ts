@@ -1,6 +1,8 @@
+
 export interface CardData {
   id: string;
   name: string;
+  symbol: string;
   description: string;
   cost: number;
   type: 'single' | 'two' | 'three';
@@ -54,6 +56,11 @@ export interface CircuitGate {
   targets: { playerId: string; qubitId: number }[];
 }
 
+export interface GameSettings {
+    qubitCount: number;
+    cardViewMode: 'basic' | 'advanced';
+}
+
 export interface GameState {
   players: {
     [key: string]: PlayerState;
@@ -66,6 +73,7 @@ export interface GameState {
   awaitingTarget: AwaitingTargetInfo | null;
   isCpuThinking: boolean;
   circuitHistory: CircuitGate[];
+  settings: GameSettings;
 }
 
 export type Move = {
@@ -75,7 +83,7 @@ export type Move = {
 };
 
 export type GameAction =
-  | { type: 'START_GAME' }
+  | { type: 'START_GAME'; settings: GameSettings }
   | { type: 'SELECT_CARD'; card: CardData; playerId: string }
   | { type: 'SELECT_QUBIT'; playerId: string; qubitId: number }
   | { type: 'CANCEL_TARGET' }
@@ -83,4 +91,5 @@ export type GameAction =
   | { type: 'CPU_THINKING_START' }
   | { type: 'CPU_THINKING_END' }
   | { type: 'CPU_PERFORM_MOVE'; move: Move | null }
-  | { type: 'CPU_PERFORM_SETUP_MOVES'; moves: AwaitingTargetInfo[] };
+  | { type: 'CPU_PERFORM_SETUP_MOVES'; moves: AwaitingTargetInfo[] }
+  | { type: 'LOG_MESSAGE'; message: string };

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { PlayerState, AwaitingTargetInfo, GameState } from '../types';
 import { QubitDisplay } from './QubitDisplay';
@@ -33,7 +34,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({ player, isOpponent, onSe
         </div>
       </div>
       
-      <div className="flex gap-2 md:gap-8">
+      <div className="flex gap-2 md:gap-4 flex-wrap justify-end max-w-[60%]">
         {player.qubits.map(qubit => (
           <QubitDisplay
             key={qubit.id}
