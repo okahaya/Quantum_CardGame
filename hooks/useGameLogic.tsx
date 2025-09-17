@@ -1,142 +1,11 @@
-
-import { useReducer, useCallback, useEffect, useState } from 'react';
-import { GameState, GamePhase, PlayerState, QubitState, QubitPhysicalState, CardData, AwaitingTargetInfo } from '../types';
+import { useReducer, useCallback, useEffect } from 'react';
+import { GameState, GamePhase, PlayerState, QubitState, QubitPhysicalState, CardData, AwaitingTargetInfo, CircuitGate, Move, GameAction } from '../types';
 import { INITIAL_DECK_TEMPLATE, PLAYER1_ID, PLAYER2_ID } from '../constants';
-
-type GameAction =
-  | { type: 'START_GAME' }
-  | { type: 'CHOOSE_INITIAL_STATE'; payload: { q1: QubitPhysicalState, q2: QubitPhysicalState } }
-  | { type: 'SELECT_CARD'; card: CardData; playerId: string }
-  | { type: 'SELECT_QUBIT'; playerId: string; qubitId: number }
-  | { type: 'END_TURN' }
-  | { type: 'APPLY_CARD_EFFECT'; payload: AwaitingTargetInfo };
+import { v4 as uuidv4 } from 'uuid';
 
 //==============================================
-// CPU LOGIC
+// HELPER FUNCTIONS
 //==============================================
-type Move = {
-  card: CardData;
-  targets: { playerId: string; qubitId: number }[];
-  score: number;
-};
-
-const getPossibleTargetsForCpu = (card: CardData, cpu: PlayerState, opponent: PlayerState): {playerId: string, qubitId: number}[][] => {
-    const allTargets: {playerId: string, qubitId: number}[][] = [];
-    const ownQubits = cpu.qubits.map(q => ({playerId: cpu.id, qubitId: q.id}));
-    const oppQubits = opponent.qubits.map(q => ({playerId: opponent.id, qubitId: q.id}));
-
-    if (card.targets === 1) {
-        ownQubits.forEach(t => allTargets.push([t]));
-        if (card.targetOpponent) {
-            oppQubits.forEach(t => allTargets.push([t]));
-        }
-    } else if (card.targets === 2) {
-        if(card.name === 'CNOT Card' || card.name === 'SWAP Card' || card.name === 'Entanglement Card') {
-            for (const ownTarget of ownQubits) {
-                for (const oppTarget of oppQubits) {
-                    allTargets.push([ownTarget, oppTarget]);
-                }
-            }
-        }
-    }
-    return allTargets;
-};
-
-
-const evaluateCpuMove = (card: CardData, targets: { playerId: string; qubitId: number }[], gameState: GameState): number => {
-    const cpuId = PLAYER2_ID;
-    const opponentId = PLAYER1_ID;
-    const opponentQubits = gameState.players[opponentId].qubits;
-    const cpuQubits = gameState.players[cpuId].qubits;
-
-    // Priority 1: Direct Win
-    if (card.name === 'Pauli-X Card (X)' && targets[0].playerId === opponentId) {
-        const targetQubit = opponentQubits.find(q => q.id === targets[0].qubitId)!;
-        const otherQubit = opponentQubits.find(q => q.id !== targets[0].qubitId)!;
-        if (targetQubit.physicalState === QubitPhysicalState.One && otherQubit.physicalState === QubitPhysicalState.Zero) {
-            return 1000;
-        }
-    }
-    if (card.name === 'CNOT Card') {
-        const controlQubit = cpuQubits.find(q => q.id === targets[0].qubitId)!;
-        const targetQubit = opponentQubits.find(q => q.id === targets[1].qubitId)!;
-        const otherQubit = opponentQubits.find(q => q.id !== targets[1].qubitId)!;
-        if (controlQubit.physicalState === QubitPhysicalState.One && targetQubit.physicalState === QubitPhysicalState.One && otherQubit.physicalState === QubitPhysicalState.Zero) {
-            return 1000;
-        }
-    }
-
-    // Priority 3: Disruption
-    if (card.name === 'Measurement Card' && targets[0].playerId === opponentId) {
-        const targetQubit = opponentQubits.find(q => q.id === targets[0].qubitId)!;
-        if (targetQubit.physicalState === QubitPhysicalState.Superposition) {
-            return 100;
-        }
-    }
-
-    // Priority 2: State Preparation (getting closer to |00⟩)
-    const initialOnes = opponentQubits.filter(q => q.physicalState === QubitPhysicalState.One).length;
-    let finalOnes = initialOnes;
-    
-    if (card.name === 'Pauli-X Card (X)' && targets[0].playerId === opponentId) {
-        const targetQubit = opponentQubits.find(q => q.id === targets[0].qubitId)!;
-        if (targetQubit.physicalState === QubitPhysicalState.One) finalOnes--;
-        else if (targetQubit.physicalState === QubitPhysicalState.Zero) finalOnes++;
-    }
-     if (card.name === 'CNOT Card') {
-        const controlQubit = cpuQubits.find(q => q.id === targets[0].qubitId)!;
-        const targetQubit = opponentQubits.find(q => q.id === targets[1].qubitId)!;
-        if (controlQubit.physicalState === QubitPhysicalState.One && targetQubit.physicalState === QubitPhysicalState.One) {
-            finalOnes--;
-        }
-    }
-    if (finalOnes < initialOnes) return (initialOnes - finalOnes) * 50;
-    if (finalOnes > initialOnes) return -50; // Penalize counter-productive moves
-    if (card.name === 'Hadamard Card (H)' && targets[0].playerId === opponentId) {
-        const targetQubit = opponentQubits.find(q => q.id === targets[0].qubitId)!;
-        if(targetQubit.physicalState !== QubitPhysicalState.Superposition) return -20;
-    }
-
-
-    // Priority 4: Defense
-    const cpuOnes = cpuQubits.filter(q => q.physicalState === QubitPhysicalState.One).length;
-    if (cpuOnes > 0 && cpuQubits.every(q => q.physicalState !== QubitPhysicalState.Superposition)) {
-        if (card.name === 'Hadamard Card (H)' && targets[0].playerId === cpuId) return 20;
-        if (card.name === 'Entanglement Card') return 20;
-    }
-
-    // Priority 5: Default Move
-    let baseScore = 10 - card.cost;
-    if (targets.some(t => t.playerId === opponentId)) baseScore += 5;
-    return baseScore;
-};
-
-const calculateBestCpuMove = (gameState: GameState): Move | null => {
-    const cpuPlayer = gameState.players[PLAYER2_ID];
-    const opponentPlayer = gameState.players[PLAYER1_ID];
-    const playableCards = cpuPlayer.hand.filter(card => card.cost <= cpuPlayer.mana);
-
-    if (playableCards.length === 0) return null;
-
-    let bestMove: Move | null = null;
-
-    for (const card of playableCards) {
-        const possibleTargets = getPossibleTargetsForCpu(card, cpuPlayer, opponentPlayer);
-        for (const targets of possibleTargets) {
-            const score = evaluateCpuMove(card, targets, gameState);
-            if (!bestMove || score > bestMove.score) {
-                bestMove = { card, targets, score };
-            }
-        }
-    }
-    return bestMove;
-};
-
-
-//==============================================
-// GAME LOGIC HOOK
-//==============================================
-
 const shuffleDeck = <T,>(array: T[]): T[] => {
   const newArray = [...array];
   for (let i = newArray.length - 1; i > 0; i--) {
@@ -150,331 +19,380 @@ const createInitialPlayerState = (id: string, name: string): PlayerState => {
     const deck = shuffleDeck(INITIAL_DECK_TEMPLATE);
     const hand = deck.splice(0, 7);
     return {
-        id,
-        name,
-        qubits: [
-            { id: 0, physicalState: QubitPhysicalState.Zero, entangledWith: null },
-            { id: 1, physicalState: QubitPhysicalState.Zero, entangledWith: null },
-        ],
-        deck,
-        hand,
-        discard: [],
-        mana: 1,
-        maxMana: 1,
+        id, name,
+        qubits: Array.from({ length: 3 }, (_, i) => ({ id: i, physicalState: QubitPhysicalState.Zero, entangledWith: null })),
+        deck, hand, discard: [], mana: 0, maxMana: 0,
     };
 };
 
-const createInitialGameState = (): GameState => {
-  return {
+const createInitialGameState = (): GameState => ({
     players: {
-      [PLAYER1_ID]: createInitialPlayerState(PLAYER1_ID, 'Player 1'),
-      [PLAYER2_ID]: createInitialPlayerState(PLAYER2_ID, 'CPU Opponent'),
+        [PLAYER1_ID]: createInitialPlayerState(PLAYER1_ID, 'Player 1'),
+        [PLAYER2_ID]: createInitialPlayerState(PLAYER2_ID, 'CPU Opponent'),
     },
-    gamePhase: GamePhase.Setup,
+    gamePhase: GamePhase.Player1Setup,
     currentPlayerId: PLAYER1_ID,
     turn: 1,
     winner: null,
-    log: ['Game Started. Choose your initial state.'],
+    log: ['Game Started. Turn 1: Preparation Phase. Target your own qubits for free.'],
     awaitingTarget: null,
     isCpuThinking: false,
-  };
+    circuitHistory: [],
+});
+
+const findQubit = (state: GameState, playerId: string, qubitId: number): QubitState | undefined => state.players[playerId]?.qubits.find(q => q.id === qubitId);
+
+const updateQubit = (state: GameState, playerId: string, qubitId: number, updates: Partial<QubitState>): GameState => ({
+    ...state,
+    players: {
+        ...state.players,
+        [playerId]: { ...state.players[playerId], qubits: state.players[playerId].qubits.map(q => q.id === qubitId ? { ...q, ...updates } : q) }
+    }
+});
+
+export const isValidTarget = (targetPlayerId: string, targetQubitId: number, awaitingInfo: AwaitingTargetInfo | null, gameState: GameState): boolean => {
+    if (!awaitingInfo) return false;
+
+    // Rule for Preparation Phase (Turn 1): Can only target your own qubits
+    if (gameState.turn === 1 && targetPlayerId !== awaitingInfo.sourcePlayerId) {
+        return false;
+    }
+
+    const { card, sourcePlayerId, targetsAcquired } = awaitingInfo;
+    const targetType = targetsAcquired.length;
+
+    if (card.name === 'CNOT' || card.name === 'SWAP') {
+        if (targetType === 0) return targetPlayerId === sourcePlayerId;
+        if (targetType === 1) return targetPlayerId !== sourcePlayerId;
+    } else if (card.name === 'Toffoli') {
+        if (targetType < 2) return targetPlayerId === sourcePlayerId;
+        if (targetType === 2) return targetPlayerId !== sourcePlayerId;
+    } else if (!card.targetOpponent && gameState.turn > 1) { // targetOpponent rule only applies after setup
+        return targetPlayerId === sourcePlayerId;
+    }
+    
+    // Check for duplicate targets
+    if (targetsAcquired.some(t => t.playerId === targetPlayerId && t.qubitId === targetQubitId)) {
+        return false;
+    }
+    
+    return true; // Default for single-target cards and other cases
 };
 
-const findQubit = (state: GameState, playerId: string, qubitId: number): QubitState | undefined => {
-    return state.players[playerId]?.qubits.find(q => q.id === qubitId);
-}
+//==============================================
+// CPU LOGIC
+//==============================================
+const getPossibleTargetsForCpu = (card: CardData, cpu: PlayerState, opponent: PlayerState, gameState: GameState): {playerId: string, qubitId: number}[][] => {
+    const allTargets: {playerId: string, qubitId: number}[][] = [];
+    const ownQubits = cpu.qubits.map(q => ({playerId: cpu.id, qubitId: q.id}));
+    const oppQubits = opponent.qubits.map(q => ({playerId: opponent.id, qubitId: q.id}));
 
-const updateQubit = (state: GameState, playerId: string, qubitId: number, updates: Partial<QubitState>): GameState => {
-    return {
-        ...state,
-        players: {
-            ...state.players,
-            [playerId]: {
-                ...state.players[playerId],
-                qubits: state.players[playerId].qubits.map(q => q.id === qubitId ? { ...q, ...updates } : q)
-            }
+    if (gameState.turn === 1) { // CPU Setup Logic
+        if (card.targets === 1) {
+            ownQubits.forEach(t => allTargets.push([t]));
+        } // Multi-target cards on self are less useful in setup, can be added later
+    } else { // Regular Turn Logic
+        if (card.targets === 1) {
+            if (card.targetOpponent) oppQubits.forEach(t => allTargets.push([t]));
+            ownQubits.forEach(t => allTargets.push([t]));
+        } else if (card.name === 'CNOT' || card.name === 'SWAP') {
+            for (const ownTarget of ownQubits) for (const oppTarget of oppQubits) allTargets.push([ownTarget, oppTarget]);
+        } else if (card.name === 'Toffoli') {
+            for(let i=0; i < ownQubits.length; i++) for(let j=i+1; j < ownQubits.length; j++) for(const oppTarget of oppQubits) allTargets.push([ownQubits[i], ownQubits[j], oppTarget]);
         }
-    };
-}
+    }
+    return allTargets;
+};
 
+const evaluateCpuMove = (card: CardData, targets: { playerId: string; qubitId: number }[], gameState: GameState): number => {
+    const opponentId = PLAYER1_ID;
+    const opponentQubits = gameState.players[opponentId].qubits;
+    const cpuQubits = gameState.players[PLAYER2_ID].qubits;
+    let tempOpponentQubits = JSON.parse(JSON.stringify(opponentQubits));
+
+    // Simulate state change
+    if (card.name === 'Pauli-X (X)' && targets[0].playerId === opponentId) {
+        const q = tempOpponentQubits.find((q: QubitState) => q.id === targets[0].qubitId);
+        if (q.physicalState === QubitPhysicalState.Zero) q.physicalState = QubitPhysicalState.One;
+        else if (q.physicalState === QubitPhysicalState.One) q.physicalState = QubitPhysicalState.Zero;
+    } else if (card.name === 'CNOT') {
+        if(cpuQubits.find(q => q.id === targets[0].qubitId)!.physicalState === QubitPhysicalState.One) {
+            const q = tempOpponentQubits.find((q: QubitState) => q.id === targets[1].qubitId);
+            if (q.physicalState === QubitPhysicalState.Zero) q.physicalState = QubitPhysicalState.One;
+            else if (q.physicalState === QubitPhysicalState.One) q.physicalState = QubitPhysicalState.Zero;
+        }
+    } else if (card.name === 'Toffoli') {
+        if(cpuQubits.find(q => q.id === targets[0].qubitId)!.physicalState === QubitPhysicalState.One && cpuQubits.find(q => q.id === targets[1].qubitId)!.physicalState === QubitPhysicalState.One) {
+            const q = tempOpponentQubits.find((q: QubitState) => q.id === targets[2].qubitId);
+            if (q.physicalState === QubitPhysicalState.Zero) q.physicalState = QubitPhysicalState.One;
+            else if (q.physicalState === QubitPhysicalState.One) q.physicalState = QubitPhysicalState.Zero;
+        }
+    }
+    
+    if (tempOpponentQubits.every((q: QubitState) => q.physicalState === QubitPhysicalState.Zero)) return 1000;
+    if (card.name === 'Measurement' && targets[0].playerId === opponentId && opponentQubits.find(q => q.id === targets[0].qubitId)!.physicalState === QubitPhysicalState.Superposition) return 100;
+    const initialOnes = opponentQubits.filter(q => q.physicalState === QubitPhysicalState.One).length;
+    const finalOnes = tempOpponentQubits.filter((q: QubitState) => q.physicalState === QubitPhysicalState.One).length;
+    if (finalOnes < initialOnes) return (initialOnes - finalOnes) * 50;
+    if (card.name === 'Hadamard (H)' && targets[0].playerId === PLAYER2_ID) return 20;
+    
+    let baseScore = 10 - card.cost;
+    if (targets.some(t => t.playerId === opponentId)) baseScore += 5;
+    return baseScore > 0 ? baseScore : 1;
+};
+
+const calculateBestCpuMove = (gameState: GameState): Move | null => {
+    const cpuPlayer = gameState.players[PLAYER2_ID];
+    const opponentPlayer = gameState.players[PLAYER1_ID];
+    const playableCards = cpuPlayer.hand.filter(card => card.cost <= cpuPlayer.mana);
+    if (playableCards.length === 0) return null;
+
+    return playableCards.flatMap(card => 
+        getPossibleTargetsForCpu(card, cpuPlayer, opponentPlayer, gameState)
+        .map(targets => ({ card, targets, score: evaluateCpuMove(card, targets, gameState) }))
+    ).reduce((best, move) => (!best || move.score > best.score) ? move : best, null as Move | null);
+};
+
+//==============================================
+// REDUCER LOGIC
+//==============================================
+function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo): GameState {
+    const { card, sourcePlayerId, targetsAcquired } = effectInfo;
+    let newState = { ...state };
+    const player = newState.players[sourcePlayerId];
+    
+    const cardIndex = player.hand.findIndex(c => c.id === card.id);
+    if(cardIndex === -1) return state; // Card must be in hand
+    
+    const newHand = [...player.hand];
+    newHand.splice(cardIndex, 1);
+
+    newState.players[sourcePlayerId] = {
+        ...player,
+        mana: state.turn > 1 ? player.mana - card.cost : player.mana, // No cost on turn 1
+        hand: newHand,
+        discard: [...player.discard, card]
+    };
+    newState.log = [...newState.log, `${player.name}'s ${card.name} resolves.`];
+    newState.circuitHistory = [...newState.circuitHistory, { id: uuidv4(), card, sourcePlayerId, targets: targetsAcquired, turn: state.turn }];
+
+    switch (card.name) {
+        case 'Hadamard (H)':
+            newState = updateQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId, { physicalState: QubitPhysicalState.Superposition }); break;
+        case 'Pauli-X (X)': {
+            const qubit = findQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId);
+            if(qubit) newState = updateQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId, { physicalState: qubit.physicalState === QubitPhysicalState.Zero ? QubitPhysicalState.One : QubitPhysicalState.Zero });
+            break;
+        }
+        case 'Measurement': {
+            const qubit = findQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId);
+            if (qubit?.physicalState === QubitPhysicalState.Superposition) {
+                newState = updateQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId, { physicalState: Math.random() < 0.5 ? QubitPhysicalState.Zero : QubitPhysicalState.One });
+            }
+            break;
+        }
+        case 'CNOT': {
+            const control = findQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId);
+            const target = findQubit(newState, targetsAcquired[1].playerId, targetsAcquired[1].qubitId);
+            if (control?.physicalState === QubitPhysicalState.One && target) {
+                newState = updateQubit(newState, targetsAcquired[1].playerId, targetsAcquired[1].qubitId, { physicalState: target.physicalState === QubitPhysicalState.Zero ? QubitPhysicalState.One : QubitPhysicalState.Zero });
+            }
+            break;
+        }
+        case 'SWAP': {
+            const q1 = findQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId);
+            const q2 = findQubit(newState, targetsAcquired[1].playerId, targetsAcquired[1].qubitId);
+            if(q1 && q2) {
+                newState = updateQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId, { physicalState: q2.physicalState });
+                newState = updateQubit(newState, targetsAcquired[1].playerId, targetsAcquired[1].qubitId, { physicalState: q1.physicalState });
+            }
+            break;
+        }
+        case 'Toffoli': {
+            const c1 = findQubit(newState, targetsAcquired[0].playerId, targetsAcquired[0].qubitId);
+            const c2 = findQubit(newState, targetsAcquired[1].playerId, targetsAcquired[1].qubitId);
+            const target = findQubit(newState, targetsAcquired[2].playerId, targetsAcquired[2].qubitId);
+            if (c1?.physicalState === QubitPhysicalState.One && c2?.physicalState === QubitPhysicalState.One && target) {
+                 newState = updateQubit(newState, targetsAcquired[2].playerId, targetsAcquired[2].qubitId, { physicalState: target.physicalState === QubitPhysicalState.Zero ? QubitPhysicalState.One : QubitPhysicalState.Zero });
+            }
+            break;
+        }
+    }
+    
+    // Win condition check only applies after Turn 1
+    if (newState.turn > 1) {
+        const opponentId = sourcePlayerId === PLAYER1_ID ? PLAYER2_ID : PLAYER1_ID;
+        if (newState.players[opponentId].qubits.every(q => q.physicalState === QubitPhysicalState.Zero)) {
+            newState.winner = sourcePlayerId;
+            newState.gamePhase = GamePhase.GameOver;
+            newState.log.push(`${newState.players[sourcePlayerId].name} wins by collapsing opponent to |000⟩!`);
+        }
+    }
+    
+    return { ...newState, awaitingTarget: null };
+}
 
 const gameReducer = (state: GameState, action: GameAction): GameState => {
   switch (action.type) {
-    case 'START_GAME':
-      return createInitialGameState();
-
-    case 'CHOOSE_INITIAL_STATE': {
-      if (state.gamePhase !== GamePhase.Setup) return state;
-      
-      const { q1, q2 } = action.payload;
-
-      // Set Player 1's state
-      const player1Qubits: QubitState[] = [
-        { id: 0, physicalState: q1, entangledWith: null },
-        { id: 1, physicalState: q2, entangledWith: null },
-      ];
-      
-      // Randomly set Player 2's state
-      const possibleStates = [
-          [QubitPhysicalState.Zero, QubitPhysicalState.Zero],
-          [QubitPhysicalState.Zero, QubitPhysicalState.One],
-          [QubitPhysicalState.One, QubitPhysicalState.Zero],
-          [QubitPhysicalState.One, QubitPhysicalState.One],
-      ];
-      const randomIndex = Math.floor(Math.random() * possibleStates.length);
-      const [p2q1, p2q2] = possibleStates[randomIndex];
-      const player2Qubits: QubitState[] = [
-        { id: 0, physicalState: p2q1, entangledWith: null },
-        { id: 1, physicalState: p2q2, entangledWith: null },
-      ];
-
-      return {
-        ...state,
-        players: {
-          ...state.players,
-          [PLAYER1_ID]: { ...state.players[PLAYER1_ID], qubits: player1Qubits },
-          [PLAYER2_ID]: { ...state.players[PLAYER2_ID], qubits: player2Qubits },
-        },
-        gamePhase: GamePhase.Player1Turn,
-        log: [...state.log, `Player 1 chose initial state.`, `Player 1's turn.`]
-      };
-    }
-
+    case 'START_GAME': return createInitialGameState();
+    case 'CPU_THINKING_START': return { ...state, isCpuThinking: true };
+    case 'CPU_THINKING_END': return { ...state, isCpuThinking: false };
+    case 'CANCEL_TARGET': return { ...state, awaitingTarget: null };
+    
     case 'SELECT_CARD': {
-      const { card, playerId } = action;
-      if (state.gamePhase !== GamePhase.Player1Turn && state.gamePhase !== GamePhase.Player2Turn) return state;
-      if (playerId !== state.currentPlayerId) return state;
-      if (state.awaitingTarget) return state; // Already waiting for a target
-
-      const player = state.players[playerId];
-      if (player.mana < card.cost) {
-          return {...state, log: [...state.log, `Not enough mana to play ${card.name}`]};
-      }
-      
-      const awaitingTarget: AwaitingTargetInfo = { card, sourcePlayerId: playerId, targetsAcquired: [] };
-      
-      if(card.targets === 0) {
-        // Immediately apply effect for no-target cards (not in this set, but good practice)
-        return applyCardEffect(state, awaitingTarget);
-      } else {
-        return { ...state, awaitingTarget, log: [...state.log, `${player.name} plays ${card.name}. Select target(s).`] };
-      }
+        const { card, playerId } = action;
+        if (playerId !== state.currentPlayerId || state.awaitingTarget) return state;
+        const player = state.players[playerId];
+        if (state.turn > 1 && player.mana < card.cost) return {...state, log: [...state.log, `Not enough mana for ${card.name}`]};
+        
+        const prompts = {'CNOT': 'Select YOUR control qubit.', 'SWAP': 'Select YOUR qubit to swap.', 'Toffoli': 'Select YOUR first control qubit.'}
+        const prompt = prompts[card.name as keyof typeof prompts] || 'Select a target qubit.';
+        const awaitingTarget: AwaitingTargetInfo = { card, sourcePlayerId: playerId, targetsAcquired: [], prompt };
+        
+        return { ...state, awaitingTarget, log: [...state.log, `${player.name} plays ${card.name}. ${awaitingTarget.prompt}`] };
     }
 
     case 'SELECT_QUBIT': {
         if (!state.awaitingTarget) return state;
         const { playerId, qubitId } = action;
-        const { card, sourcePlayerId, targetsAcquired } = state.awaitingTarget;
+        if (!isValidTarget(playerId, qubitId, state.awaitingTarget, state)) return state;
 
-        // Validation
-        if(card.name === 'CNOT Card' || card.name === 'SWAP Card' || card.name === 'Entanglement Card') {
-            if(targetsAcquired.length === 0 && playerId !== sourcePlayerId) return state; // First target must be own qubit
-            if(targetsAcquired.length === 1 && playerId === sourcePlayerId) return state; // Second target must be opponent
-        } else if (!card.targetOpponent && playerId !== sourcePlayerId) {
-            return state; // Cannot target opponent
-        }
-
-        const newTargets = [...targetsAcquired, { playerId, qubitId }];
-
-        if (newTargets.length === card.targets) {
+        const newTargets = [...state.awaitingTarget.targetsAcquired, { playerId, qubitId }];
+        if (newTargets.length === state.awaitingTarget.card.targets) {
             return applyCardEffect(state, { ...state.awaitingTarget, targetsAcquired: newTargets });
         } else {
-            return { ...state, awaitingTarget: { ...state.awaitingTarget, targetsAcquired: newTargets } };
+            let prompt = '';
+            if (state.awaitingTarget.card.name === 'CNOT' || state.awaitingTarget.card.name === 'SWAP') prompt = 'Select OPPONENT\'s target qubit.';
+            if (state.awaitingTarget.card.name === 'Toffoli') prompt = newTargets.length === 1 ? 'Select YOUR second control qubit.' : 'Select OPPONENT\'s target qubit.';
+            return { ...state, awaitingTarget: { ...state.awaitingTarget, targetsAcquired: newTargets, prompt } };
         }
     }
 
     case 'END_TURN': {
-        if (state.gamePhase !== GamePhase.Player1Turn && state.gamePhase !== GamePhase.Player2Turn) return state;
         if (state.awaitingTarget) return state;
-
-        // Draw cards
-        const currentPlayer = state.players[state.currentPlayerId];
-        let newDeck = [...currentPlayer.deck];
-        let newHand = [...currentPlayer.hand];
-        while(newHand.length < 5 && newDeck.length > 0) {
-            newHand.push(newDeck.pop()!);
+        
+        if (state.gamePhase === GamePhase.Player1Setup) {
+            return { ...state, gamePhase: GamePhase.Player2Setup, currentPlayerId: PLAYER2_ID, log: [...state.log, `Player 1 ends setup.`, `CPU's preparation turn.`] };
+        }
+        if (state.gamePhase === GamePhase.Player2Setup) {
+            const turn = 2, maxMana = 2;
+            return {
+                ...state, gamePhase: GamePhase.Player1Turn, currentPlayerId: PLAYER1_ID, turn,
+                players: {
+                    [PLAYER1_ID]: {...state.players[PLAYER1_ID], mana: maxMana, maxMana},
+                    [PLAYER2_ID]: {...state.players[PLAYER2_ID], mana: maxMana, maxMana},
+                },
+                log: [...state.log, `Preparation phase ends.`, `Turn 2: Battle phase begins.`]
+            };
         }
         
-        const nextPlayerId = state.currentPlayerId === PLAYER1_ID ? PLAYER2_ID : PLAYER1_ID;
-        const isNewRound = nextPlayerId === PLAYER1_ID;
-        const newTurn = isNewRound ? state.turn + 1 : state.turn;
+        const currentPlayer = state.players[state.currentPlayerId];
+        let newDeck = [...currentPlayer.deck], newHand = [...currentPlayer.hand];
+        while(newHand.length < 5 && newDeck.length > 0) newHand.push(newDeck.pop()!);
         
-        let nextPlayer = state.players[nextPlayerId];
+        const nextPlayerId = state.currentPlayerId === PLAYER1_ID ? PLAYER2_ID : PLAYER1_ID;
+        const newTurn = nextPlayerId === PLAYER1_ID ? state.turn + 1 : state.turn;
         const newMaxMana = Math.min(10, newTurn);
-        const isCpuTurnStarting = nextPlayerId === PLAYER2_ID;
         
         return {
             ...state,
             players: {
                 ...state.players,
                 [state.currentPlayerId]: { ...currentPlayer, hand: newHand, deck: newDeck },
-                [nextPlayerId]: { ...nextPlayer, maxMana: newMaxMana, mana: newMaxMana }
+                [nextPlayerId]: { ...state.players[nextPlayerId], maxMana: newMaxMana, mana: newMaxMana }
             },
             currentPlayerId: nextPlayerId,
             gamePhase: nextPlayerId === PLAYER1_ID ? GamePhase.Player1Turn : GamePhase.Player2Turn,
             turn: newTurn,
             awaitingTarget: null,
-            log: [...state.log, `${currentPlayer.name} ends their turn.`, `${nextPlayer.name}'s turn.`],
-            isCpuThinking: isCpuTurnStarting,
+            log: [...state.log, `${currentPlayer.name} ends turn.`, `${state.players[nextPlayerId].name}'s turn.`]
         };
     }
+      
+    case 'CPU_PERFORM_SETUP_MOVES': {
+        return action.moves.reduce((currentState, move) => applyCardEffect(currentState, move), state);
+    }
+      
+    case 'CPU_PERFORM_MOVE': {
+        if (!action.move) return state;
+        const effect: AwaitingTargetInfo = { card: action.move.card, sourcePlayerId: PLAYER2_ID, targetsAcquired: action.move.targets };
+        return applyCardEffect(state, effect);
+    }
 
-    default:
-      return state;
+    default: return state;
   }
 };
 
-function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo): GameState {
-    const { card, sourcePlayerId, targetsAcquired } = effectInfo;
-    
-    let newState = { ...state };
-    const player = newState.players[sourcePlayerId];
-
-    // Deduct cost and move card to discard
-    const cardIndex = player.hand.findIndex(c => c.id === card.id);
-    if(cardIndex === -1) return state; // Card not in hand
-    
-    const newHand = [...player.hand];
-    const playedCard = newHand.splice(cardIndex, 1)[0];
-
-    newState.players[sourcePlayerId] = {
-        ...player,
-        mana: player.mana - card.cost,
-        hand: newHand,
-        discard: [...player.discard, playedCard]
-    };
-    newState.log = [...newState.log, `${player.name}'s ${card.name} resolves.`];
-    
-    // Apply card specific logic
-    switch (card.name) {
-        case 'Hadamard Card (H)': {
-            const target = targetsAcquired[0];
-            newState = updateQubit(newState, target.playerId, target.qubitId, { physicalState: QubitPhysicalState.Superposition });
-            break;
-        }
-        case 'Pauli-X Card (X)': {
-            const target = targetsAcquired[0];
-            const qubit = findQubit(newState, target.playerId, target.qubitId);
-            if(qubit) {
-                const newStateVal = qubit.physicalState === QubitPhysicalState.Zero ? QubitPhysicalState.One : QubitPhysicalState.Zero;
-                newState = updateQubit(newState, target.playerId, target.qubitId, { physicalState: newStateVal });
-            }
-            break;
-        }
-         case 'Measurement Card': {
-            const target = targetsAcquired[0];
-            const qubit = findQubit(newState, target.playerId, target.qubitId);
-            if (qubit && qubit.physicalState === QubitPhysicalState.Superposition) {
-                const outcome = Math.random() < 0.5 ? QubitPhysicalState.Zero : QubitPhysicalState.One;
-                newState = updateQubit(newState, target.playerId, target.qubitId, { physicalState: outcome });
-            }
-            break;
-        }
-        case 'CNOT Card': {
-            const control = targetsAcquired[0];
-            const target = targetsAcquired[1];
-            const controlQubit = findQubit(newState, control.playerId, control.qubitId);
-            const targetQubit = findQubit(newState, target.playerId, target.qubitId);
-
-            if (controlQubit?.physicalState === QubitPhysicalState.One && targetQubit) {
-                const newStateVal = targetQubit.physicalState === QubitPhysicalState.Zero ? QubitPhysicalState.One : QubitPhysicalState.Zero;
-                newState = updateQubit(newState, target.playerId, target.qubitId, { physicalState: newStateVal });
-            }
-            break;
-        }
-        case 'SWAP Card': {
-            const q1_ref = targetsAcquired[0];
-            const q2_ref = targetsAcquired[1];
-            const q1 = findQubit(newState, q1_ref.playerId, q1_ref.qubitId);
-            const q2 = findQubit(newState, q2_ref.playerId, q2_ref.qubitId);
-            if(q1 && q2) {
-                const tempState = q1.physicalState;
-                newState = updateQubit(newState, q1_ref.playerId, q1_ref.qubitId, { physicalState: q2.physicalState });
-                newState = updateQubit(newState, q2_ref.playerId, q2_ref.qubitId, { physicalState: tempState });
-            }
-            break;
-        }
-        case 'Entanglement Card': {
-            // simplified entanglement logic
-            const q1_ref = targetsAcquired[0];
-            const q2_ref = targetsAcquired[1];
-            newState = updateQubit(newState, q1_ref.playerId, q1_ref.qubitId, { entangledWith: q2_ref });
-            newState = updateQubit(newState, q2_ref.playerId, q2_ref.qubitId, { entangledWith: q1_ref });
-            break;
-        }
-    }
-    
-    // Check for win condition
-    const opponentId = sourcePlayerId === PLAYER1_ID ? PLAYER2_ID : PLAYER1_ID;
-    const opponentQubits = newState.players[opponentId].qubits;
-    const playerWins = opponentQubits.every(q => q.physicalState === QubitPhysicalState.Zero);
-
-    if (playerWins) {
-        newState.winner = sourcePlayerId;
-        newState.gamePhase = GamePhase.GameOver;
-        newState.log.push(`${newState.players[sourcePlayerId].name} wins by setting opponent to |00⟩!`);
-    }
-    
-    return { ...newState, awaitingTarget: null };
-}
-
-
 export const useGameLogic = () => {
-  const [gameState, dispatch] = useReducer(gameReducer, createInitialGameState());
-  const [isCpuThinking, setIsCpuThinking] = useState(false);
+  const [gameState, dispatch] = useReducer(gameReducer, undefined, createInitialGameState);
 
   useEffect(() => {
-    if (gameState.gamePhase === GamePhase.Player2Turn && !isCpuThinking && !gameState.winner) {
-        setIsCpuThinking(true);
-        
-        // Use timeout to simulate CPU "thinking"
+    if (gameState.winner || gameState.awaitingTarget || gameState.isCpuThinking) return;
+
+    const isCpuSetup = gameState.gamePhase === GamePhase.Player2Setup;
+    const isCpuTurn = gameState.gamePhase === GamePhase.Player2Turn;
+
+    if (isCpuSetup) {
+        dispatch({ type: 'CPU_THINKING_START' });
+        setTimeout(() => {
+            const cpu = gameState.players[PLAYER2_ID];
+            let moves: AwaitingTargetInfo[] = [];
+            // Strategy: Play up to 2 X-Cards to set qubits to |1⟩, then 1 H-card for defense.
+            const xCards = cpu.hand.filter(c => c.id === 'x');
+            const hCards = cpu.hand.filter(c => c.id === 'h');
+            const availableQubitIds = [0, 1, 2];
+
+            if (xCards.length > 0 && availableQubitIds.length > 0) {
+                const targetId = availableQubitIds.pop()!;
+                moves.push({ card: xCards[0], sourcePlayerId: PLAYER2_ID, targetsAcquired: [{playerId: PLAYER2_ID, qubitId: targetId}] });
+            }
+            if (xCards.length > 1 && availableQubitIds.length > 0) {
+                 const targetId = availableQubitIds.pop()!;
+                 moves.push({ card: xCards[1], sourcePlayerId: PLAYER2_ID, targetsAcquired: [{playerId: PLAYER2_ID, qubitId: targetId}] });
+            }
+            if (hCards.length > 0 && availableQubitIds.length > 0) {
+                 const targetId = availableQubitIds.pop()!;
+                 moves.push({ card: hCards[0], sourcePlayerId: PLAYER2_ID, targetsAcquired: [{playerId: PLAYER2_ID, qubitId: targetId}] });
+            }
+
+            dispatch({ type: 'CPU_PERFORM_SETUP_MOVES', moves });
+            setTimeout(() => {
+                dispatch({ type: 'CPU_THINKING_END' });
+                dispatch({ type: 'END_TURN' });
+            }, 500 * (moves.length || 1));
+        }, 1500);
+    }
+
+    if (isCpuTurn) {
+        dispatch({ type: 'CPU_THINKING_START' });
         setTimeout(() => {
             const move = calculateBestCpuMove(gameState);
-
-            if (move) {
-                // Sequence the card play with delays
-                setTimeout(() => {
-                    dispatch({ type: 'SELECT_CARD', card: move.card, playerId: PLAYER2_ID });
-                }, 500);
-
-                move.targets.forEach((target, index) => {
-                    setTimeout(() => {
-                        dispatch({ type: 'SELECT_QUBIT', playerId: target.playerId, qubitId: target.qubitId });
-                    }, 500 + 700 * (index + 1));
-                });
-                
-                // End turn after the final action
-                setTimeout(() => {
-                    dispatch({ type: 'END_TURN' });
-                    setIsCpuThinking(false);
-                }, 500 + 700 * (move.targets.length + 1));
-
-            } else {
-                // No valid move, just end the turn
-                setTimeout(() => {
-                    dispatch({ type: 'END_TURN' });
-                    setIsCpuThinking(false);
-                }, 1000);
-            }
-        }, 1500); // Initial thinking delay
+            dispatch({ type: 'CPU_PERFORM_MOVE', move });
+            setTimeout(() => {
+                dispatch({ type: 'CPU_THINKING_END' });
+                dispatch({ type: 'END_TURN' });
+            }, 500);
+        }, 1500);
     }
-  }, [gameState.gamePhase, gameState, isCpuThinking]);
+  }, [gameState.gamePhase, gameState.winner, gameState.awaitingTarget, gameState.isCpuThinking]);
 
-
-  const selectCard = useCallback((card: CardData, playerId: string) => {
-    // Prevent human from playing during CPU turn
-    if(playerId === PLAYER2_ID) return;
-    dispatch({ type: 'SELECT_CARD', card, playerId });
-  }, []);
+  const selectCard = useCallback((card: CardData) => {
+    if(gameState.currentPlayerId !== PLAYER1_ID) return;
+    dispatch({ type: 'SELECT_CARD', card, playerId: PLAYER1_ID });
+  }, [gameState.currentPlayerId]);
 
   const selectQubit = useCallback((playerId: string, qubitId: number) => {
     dispatch({ type: 'SELECT_QUBIT', playerId, qubitId });
   }, []);
+  
+  const cancelTarget = useCallback(() => {
+    dispatch({ type: 'CANCEL_TARGET' });
+  }, []);
 
   const endTurn = useCallback(() => {
-     if(gameState.currentPlayerId === PLAYER2_ID) return;
+     if(gameState.currentPlayerId !== PLAYER1_ID || gameState.awaitingTarget) return;
     dispatch({ type: 'END_TURN' });
-  }, [gameState.currentPlayerId]);
+  }, [gameState.currentPlayerId, gameState.awaitingTarget]);
 
-  return { gameState, dispatch, selectCard, selectQubit, endTurn };
+  return { gameState, dispatch, selectCard, selectQubit, endTurn, cancelTarget };
 };

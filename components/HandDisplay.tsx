@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { CardData } from '../types';
 import { CardDisplay } from './CardDisplay';
@@ -7,39 +6,31 @@ interface HandDisplayProps {
   hand: CardData[];
   mana: number;
   isCurrentPlayer: boolean;
+  isSetupPhase: boolean;
   onSelectCard: (card: CardData) => void;
 }
 
-export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, onSelectCard }) => {
-  const handSize = hand.length;
-  const rotationAngle = 10; // Max angle for the fan
-  const yOffset = 20; // How much the cards lift up from the center
+export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, isSetupPhase, onSelectCard }) => {
 
   return (
-    <div className="relative w-full h-48 flex justify-center items-end">
-      {hand.map((card, index) => {
-        const rotation = (index - (handSize - 1) / 2) * rotationAngle * (handSize > 5 ? 0.6 : 1);
-        const translateY = Math.abs(index - (handSize - 1) / 2) * yOffset / (handSize > 5 ? 2 : 1);
-        const isPlayable = isCurrentPlayer && mana >= card.cost;
-
-        return (
-          <div
-            key={`${card.id}-${index}`}
-            className="absolute transition-transform duration-300 ease-out"
-            style={{
-              transform: `rotate(${rotation}deg) translateY(-${translateY}px)`,
-              transformOrigin: 'bottom center',
-              zIndex: index,
-            }}
-          >
-            <CardDisplay
-              card={card}
-              isPlayable={isPlayable}
-              onClick={() => onSelectCard(card)}
-            />
-          </div>
-        );
-      })}
+    <div className="w-full h-full flex items-center">
+      <div className="w-full flex gap-2 md:gap-4 overflow-x-auto pb-4 px-2">
+          {hand.map((card, index) => {
+            const isPlayable = isCurrentPlayer && (isSetupPhase || mana >= card.cost);
+            return (
+              <div key={`${card.id}-${index}`} className="shrink-0">
+                <CardDisplay
+                  card={card}
+                  isPlayable={isPlayable}
+                  onClick={() => isPlayable && onSelectCard(card)}
+                />
+              </div>
+            );
+          })}
+          {hand.length === 0 && (
+             <div className="w-full text-center text-gray-500">No cards in hand.</div>
+          )}
+      </div>
     </div>
   );
 };

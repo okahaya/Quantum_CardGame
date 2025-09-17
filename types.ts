@@ -1,12 +1,11 @@
-
 export interface CardData {
   id: string;
   name: string;
-  action: string;
+  description: string;
   cost: number;
-  type: 'single_qubit_gate' | 'two_qubit_gate' | 'special';
-  targets: number; // How many qubits this card targets
-  targetOpponent: boolean; // Can it target opponent qubits?
+  type: 'single' | 'two' | 'three';
+  targets: number; 
+  targetOpponent: boolean; 
 }
 
 export enum QubitPhysicalState {
@@ -22,7 +21,7 @@ export interface QubitState {
 }
 
 export interface PlayerState {
-  id: string;
+  id:string;
   name: string;
   qubits: QubitState[];
   deck: CardData[];
@@ -33,7 +32,8 @@ export interface PlayerState {
 }
 
 export enum GamePhase {
-  Setup = 'SETUP',
+  Player1Setup = 'PLAYER_1_SETUP',
+  Player2Setup = 'PLAYER_2_SETUP',
   Player1Turn = 'PLAYER_1_TURN',
   Player2Turn = 'PLAYER_2_TURN',
   GameOver = 'GAME_OVER',
@@ -43,8 +43,16 @@ export interface AwaitingTargetInfo {
     card: CardData;
     sourcePlayerId: string;
     targetsAcquired: { playerId: string; qubitId: number }[];
+    prompt?: string;
 }
 
+export interface CircuitGate {
+  id: string;
+  turn: number;
+  card: CardData;
+  sourcePlayerId: string;
+  targets: { playerId: string; qubitId: number }[];
+}
 
 export interface GameState {
   players: {
@@ -57,4 +65,22 @@ export interface GameState {
   log: string[];
   awaitingTarget: AwaitingTargetInfo | null;
   isCpuThinking: boolean;
+  circuitHistory: CircuitGate[];
 }
+
+export type Move = {
+  card: CardData;
+  targets: { playerId: string; qubitId: number }[];
+  score: number;
+};
+
+export type GameAction =
+  | { type: 'START_GAME' }
+  | { type: 'SELECT_CARD'; card: CardData; playerId: string }
+  | { type: 'SELECT_QUBIT'; playerId: string; qubitId: number }
+  | { type: 'CANCEL_TARGET' }
+  | { type: 'END_TURN' }
+  | { type: 'CPU_THINKING_START' }
+  | { type: 'CPU_THINKING_END' }
+  | { type: 'CPU_PERFORM_MOVE'; move: Move | null }
+  | { type: 'CPU_PERFORM_SETUP_MOVES'; moves: AwaitingTargetInfo[] };
