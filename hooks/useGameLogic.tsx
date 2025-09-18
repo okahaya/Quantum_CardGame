@@ -1,6 +1,6 @@
 
 import { useReducer, useCallback, useEffect } from 'react';
-import { GameState, GamePhase, PlayerState, CardData, AwaitingTargetInfo, Move, GameAction, GameSettings, QubitDisplayState } from '../types';
+import { GameState, GamePhase, PlayerState, CardData, AwaitingTargetInfo, Move, GameAction, GameSettings, QubitDisplayState, LogEntry } from '../types';
 import { ALL_CARDS, INITIAL_DECK_TEMPLATE, PLAYER1_ID, PLAYER2_ID } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -123,7 +123,7 @@ const shuffleDeck = (deck: CardData[]): CardData[] => {
 };
 
 
-const createInitialPlayerState = (id: string, name: string, settings: GameSettings): PlayerState => {
+const createInitialPlayerState = (id: string, nameKey: string, settings: GameSettings): PlayerState => {
     const initialDeck = INITIAL_DECK_TEMPLATE.map(card => ({ ...card, instanceId: uuidv4() }));
     const shuffledDeck = shuffleDeck(initialDeck);
     
@@ -135,27 +135,27 @@ const createInitialPlayerState = (id: string, name: string, settings: GameSettin
     const stateVector = new Array(Math.pow(2, settings.qubitCount)).fill(0);
     stateVector[0] = 1;
 
-    return { id, name, stateVector, deck, hand, mana: 0, maxMana: 0 };
+    return { id, name: nameKey, stateVector, deck, hand, mana: 0, maxMana: 0 };
 };
 
 
 const createInitialGameState = (settings: GameSettings): GameState => ({
     players: {
-        [PLAYER1_ID]: createInitialPlayerState(PLAYER1_ID, 'Player 1', settings),
-        [PLAYER2_ID]: createInitialPlayerState(PLAYER2_ID, 'CPU Opponent', settings),
+        [PLAYER1_ID]: createInitialPlayerState(PLAYER1_ID, 'playerArea.player1Name', settings),
+        [PLAYER2_ID]: createInitialPlayerState(PLAYER2_ID, 'playerArea.cpuName', settings),
     },
     gamePhase: GamePhase.Player1Setup,
     currentPlayerId: PLAYER1_ID,
     turn: 1,
     actionsTaken: 0,
     winner: null,
-    log: ['Game Started. Turn 1: Preparation Phase.'],
+    log: [{ key: 'logs.gameStarted' }],
     awaitingTarget: null,
     isCpuThinking: false,
     settings: settings
 });
 
-const checkWinCondition = (state: GameState, playerToCheckId: string): GameState => {
+const checkWinCondition = (state: GameState, playerToCheckId: string, t: (key: string, params?: any) => string): GameState => {
     if (state.turn === 1) return state; // No winning in setup phase
     const opponentId = playerToCheckId === PLAYER1_ID ? PLAYER2_ID : PLAYER1_ID;
     const opponentVector = state.players[opponentId].stateVector;
@@ -166,7 +166,7 @@ const checkWinCondition = (state: GameState, playerToCheckId: string): GameState
             ...state,
             winner: playerToCheckId,
             gamePhase: GamePhase.GameOver,
-            log: [...state.log, `GAME OVER: ${state.players[playerToCheckId].name} wins!`]
+            log: [...state.log, { key: 'logs.gameOver', params: { winnerName: t(state.players[playerToCheckId].name) } }]
         };
     }
     return state;
@@ -227,11 +227,11 @@ const generateCombinations = (arr: {playerId: string, qubitId: number}[], k: num
 };
 
 
-const evaluateCpuMove = (card: CardData, targets: { playerId: string; qubitId: number }[], gameState: GameState): number => {
+const evaluateCpuMove = (card: CardData, targets: { playerId: string; qubitId: number }[], gameState: GameState, t: (key: string) => string): number => {
     let tempGameState = JSON.parse(JSON.stringify(gameState));
     const effectInfo: AwaitingTargetInfo = { card, sourcePlayerId: PLAYER2_ID, targetsAcquired: targets, actionNumber: tempGameState.actionsTaken + 1 };
     
-    const newStateAfterMove = applyCardEffect(tempGameState, effectInfo, true);
+    const newStateAfterMove = applyCardEffect(tempGameState, effectInfo, t, true);
 
     const opponentVector = newStateAfterMove.players[PLAYER1_ID].stateVector;
     const probGroundState = opponentVector[0] * opponentVector[0];
@@ -241,9 +241,9 @@ const evaluateCpuMove = (card: CardData, targets: { playerId: string; qubitId: n
     const initialProbGround = gameState.players[PLAYER1_ID].stateVector[0] * gameState.players[PLAYER1_ID].stateVector[0];
     let score = (probGroundState - initialProbGround) * 100;
 
-    if (card.name === 'Measurement' && targets[0].playerId === PLAYER1_ID) score += 50;
-    if (card.name === 'Hadamard (H)' && targets[0].playerId === PLAYER2_ID) score += 20; 
-    if (card.name === 'Pauli-X (X)' && targets[0].playerId === PLAYER2_ID) score += 5; 
+    if (card.name === 'cards.measure_name' && targets[0].playerId === PLAYER1_ID) score += 50;
+    if (card.name === 'cards.h_name' && targets[0].playerId === PLAYER2_ID) score += 20; 
+    if (card.name === 'cards.x_name' && targets[0].playerId === PLAYER2_ID) score += 5; 
     
     score += (10 - card.cost);
     if (targets.some(t => t.playerId === PLAYER1_ID)) score += 5;
@@ -251,7 +251,7 @@ const evaluateCpuMove = (card: CardData, targets: { playerId: string; qubitId: n
     return score > 0 ? score : 1;
 };
 
-const calculateBestCpuMove = (gameState: GameState): Move | null => {
+const calculateBestCpuMove = (gameState: GameState, t: (key: string, params?: any) => string): Move | null => {
     const cpuPlayer = gameState.players[PLAYER2_ID];
     const actionNumber = gameState.actionsTaken + 1;
     const playableCards = cpuPlayer.hand.filter(card => gameState.turn === 1 || card.cost <= cpuPlayer.mana);
@@ -259,7 +259,7 @@ const calculateBestCpuMove = (gameState: GameState): Move | null => {
 
     const allPossibleMoves = playableCards.flatMap(card => 
         getPossibleTargetsForCpu(card, actionNumber, gameState)
-        .map(targets => ({ card, targets, score: evaluateCpuMove(card, targets, gameState) }))
+        .map(targets => ({ card, targets, score: evaluateCpuMove(card, targets, gameState, t) }))
     );
 
     if(allPossibleMoves.length === 0) return null;
@@ -270,7 +270,7 @@ const calculateBestCpuMove = (gameState: GameState): Move | null => {
 //==============================================
 // REDUCER LOGIC
 //==============================================
-function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSimulation = false): GameState {
+function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, t: (key: string, params?: any) => string, isSimulation = false): GameState {
     const { card, sourcePlayerId, targetsAcquired } = effectInfo;
     let newState = JSON.parse(JSON.stringify(state));
     const player = newState.players[sourcePlayerId];
@@ -291,10 +291,18 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
           deck: newDeck
       };
 
-      const sourceName = newState.players[sourcePlayerId].name;
-      const targetsString = targetsAcquired.map(t => `${newState.players[t.playerId].name}'s Q${t.qubitId + 1}`).join(', ');
-      const logMessage = `Turn ${state.turn} (${sourceName}): Played ${card.name} on ${targetsString}.`;
-      newState.log.push(logMessage);
+      const sourceName = t(newState.players[sourcePlayerId].name);
+      const targetsString = targetsAcquired.map(t_target => `${t(newState.players[t_target.playerId].name)}'s Q${t_target.qubitId + 1}`).join(', ');
+      
+      newState.log.push({
+        key: 'logs.playedCard',
+        params: {
+          turn: state.turn,
+          playerName: sourceName,
+          cardName: t(card.name),
+          targets: targetsString,
+        },
+      });
 
       // Only increment actions taken if it's not the unlimited setup phase
       if (state.turn > 1) {
@@ -307,9 +315,9 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
     const qubitCount = newState.settings.qubitCount;
     
     switch (card.name) {
-        case 'Hadamard (H)':
-        case 'Pauli-X (X)': 
-        case 'Pauli-Z (Z)': {
+        case 'cards.h_name':
+        case 'cards.x_name': 
+        case 'cards.z_name': {
             const gate = GATES[card.symbol as keyof typeof GATES];
             const target = targetsAcquired[0];
             newState.players[target.playerId].stateVector = applySingleQubitGate(
@@ -320,14 +328,23 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
             );
             break;
         }
-        case 'Measurement': {
+        case 'cards.measure_name': {
             const target = targetsAcquired[0];
             const { newVector, outcome } = measureQubit(newState.players[target.playerId].stateVector, target.qubitId, qubitCount);
             newState.players[target.playerId].stateVector = newVector;
-            if(!isSimulation) newState.log.push(`> Measurement on ${newState.players[target.playerId].name}'s Q${target.qubitId+1} collapsed to |${outcome}⟩.`);
+            if(!isSimulation) {
+                newState.log.push({
+                    key: 'logs.measurementResult',
+                    params: {
+                        playerName: t(newState.players[target.playerId].name),
+                        qubitId: target.qubitId + 1,
+                        outcome: outcome
+                    }
+                });
+            }
             break;
         }
-        case 'CNOT': {
+        case 'cards.cnot_name': {
             const control = targetsAcquired[0];
             const target = targetsAcquired[1];
 
@@ -341,7 +358,9 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
             } else { 
                  const { newVector: newControlVector, outcome } = measureQubit(newState.players[control.playerId].stateVector, control.qubitId, qubitCount);
                  newState.players[control.playerId].stateVector = newControlVector;
-                 if(!isSimulation) newState.log.push(`> Control qubit measured as |${outcome}⟩.`);
+                 if(!isSimulation) {
+                     newState.log.push({ key: 'logs.cnotMeasurement', params: { outcome } });
+                 }
 
                  if (outcome === 1) {
                      newState.players[target.playerId].stateVector = applySingleQubitGate(newState.players[target.playerId].stateVector, GATES.X, target.qubitId, qubitCount);
@@ -349,7 +368,7 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
             }
             break;
         }
-        case 'SWAP': {
+        case 'cards.swap_name': {
             const p1 = targetsAcquired[0];
             const p2 = targetsAcquired[1];
 
@@ -374,7 +393,7 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
             }
             break;
         }
-        case 'Toffoli': {
+        case 'cards.toffoli_name': {
              const c1 = targetsAcquired[0];
              const c2 = targetsAcquired[1];
              const target = targetsAcquired[2];
@@ -393,7 +412,9 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
                  const { newVector: newC2Vec, outcome: o2 } = measureQubit(newState.players[c2.playerId].stateVector, c2.qubitId, qubitCount);
                  newState.players[c2.playerId].stateVector = newC2Vec;
 
-                 if(!isSimulation) newState.log.push(`> Toffoli controls measured as |${o1}⟩ and |${o2}⟩.`);
+                 if(!isSimulation) {
+                     newState.log.push({ key: 'logs.toffoliMeasurement', params: { o1, o2 } });
+                 }
 
                  if (o1 === 1 && o2 === 1) {
                       newState.players[target.playerId].stateVector = applySingleQubitGate(newState.players[target.playerId].stateVector, GATES.X, target.qubitId, qubitCount);
@@ -404,7 +425,7 @@ function applyCardEffect(state: GameState, effectInfo: AwaitingTargetInfo, isSim
     }
     
     if (!isSimulation) {
-       newState = checkWinCondition(newState, sourcePlayerId);
+       newState = checkWinCondition(newState, sourcePlayerId, t);
     }
     
     return { ...newState, awaitingTarget: null };
@@ -416,21 +437,23 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
     case 'CPU_THINKING_START': return { ...state, isCpuThinking: true };
     case 'CPU_THINKING_END': return { ...state, isCpuThinking: false };
     case 'CANCEL_TARGET': return { ...state, awaitingTarget: null };
-    case 'LOG_MESSAGE': return { ...state, log: [...state.log, action.message] };
+    case 'LOG_MESSAGE': return { ...state, log: [...state.log, { key: action.messageKey, params: action.params }] };
     
     case 'SELECT_CARD': {
-        const { card, playerId } = action;
+        const { card, playerId, t } = action;
         const actionLimit = state.turn === 1 ? Infinity : 2;
         const hasActions = state.actionsTaken < actionLimit;
         
         if (playerId !== state.currentPlayerId || state.awaitingTarget || !hasActions) return state;
 
         const player = state.players[playerId];
-        if (state.turn > 1 && player.mana < card.cost) return {...state, log: [...state.log, `Not enough mana for ${card.name}`]};
+        if (state.turn > 1 && player.mana < card.cost) {
+            return {...state, log: [...state.log, {key: 'logs.notEnoughMana', params: { cardName: t(card.name) }}]};
+        }
         
         const actionNumber = state.actionsTaken + 1;
-        const role = card.roles ? card.roles[0] : 'a target';
-        const prompt = `Action ${actionNumber}: Select ${role} for ${card.name}.`;
+        const role = card.roles ? t(card.roles[0]) : 'a target'; // Fallback text won't be seen
+        const prompt = t('logs.awaitingTarget', { actionNumber, role, cardName: t(card.name) });
         const awaitingTarget: AwaitingTargetInfo = { card, sourcePlayerId: playerId, targetsAcquired: [], prompt, actionNumber };
         
         return { ...state, awaitingTarget };
@@ -438,24 +461,25 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
 
     case 'SELECT_QUBIT': {
         if (!state.awaitingTarget) return state;
-        const { playerId, qubitId } = action;
+        const { playerId, qubitId, t } = action;
         if (!isValidTarget(playerId, qubitId, state.awaitingTarget, state)) return state;
 
         const newTargets = [...state.awaitingTarget.targetsAcquired, { playerId, qubitId }];
         if (newTargets.length === state.awaitingTarget.card.targets) {
-            return applyCardEffect(state, { ...state.awaitingTarget, targetsAcquired: newTargets });
+            return applyCardEffect(state, { ...state.awaitingTarget, targetsAcquired: newTargets }, t);
         } else {
-            const nextRole = state.awaitingTarget.card.roles ? state.awaitingTarget.card.roles[newTargets.length] : 'the next target';
-            const prompt = `Select ${nextRole}.`;
+            const nextRole = state.awaitingTarget.card.roles ? t(state.awaitingTarget.card.roles[newTargets.length]) : 'the next target';
+            const prompt = t('logs.awaitingNextTarget', { role: nextRole });
             return { ...state, awaitingTarget: { ...state.awaitingTarget, targetsAcquired: newTargets, prompt } };
         }
     }
 
     case 'END_TURN': {
         if (state.awaitingTarget) return state;
+        const { t } = action;
         
         if (state.gamePhase === GamePhase.Player1Setup) {
-            return { ...state, gamePhase: GamePhase.Player2Setup, currentPlayerId: PLAYER2_ID, actionsTaken: 0, log: [...state.log, `End of Player 1's Preparation.`] };
+            return { ...state, gamePhase: GamePhase.Player2Setup, currentPlayerId: PLAYER2_ID, actionsTaken: 0, log: [...state.log, {key: 'logs.p1PrepEnd'}] };
         }
         if (state.gamePhase === GamePhase.Player2Setup) {
             const turn = 2, maxMana = 2;
@@ -465,9 +489,9 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
                     [PLAYER1_ID]: {...state.players[PLAYER1_ID], mana: maxMana, maxMana},
                     [PLAYER2_ID]: {...state.players[PLAYER2_ID], mana: maxMana, maxMana},
                 },
-                log: [...state.log, `End of CPU's Preparation.`, `Turn 2: Battle phase begins.`]
+                log: [...state.log, { key: 'logs.cpuPrepEnd' }, { key: 'logs.battlePhaseStart' }]
             };
-            return checkWinCondition(nextState, PLAYER2_ID);
+            return checkWinCondition(nextState, PLAYER2_ID, t);
         }
         
         const currentPlayer = state.players[state.currentPlayerId];
@@ -497,29 +521,34 @@ const gameReducer = (state: GameState, action: GameAction): GameState => {
             turn: newTurn,
             actionsTaken: 0,
             awaitingTarget: null,
-            log: [...state.log, `${currentPlayer.name} ends turn.`, `Turn ${newTurn}: ${state.players[nextPlayerId].name}'s turn.`]
+            log: [
+                ...state.log, 
+                { key: 'logs.turnEnd', params: { playerName: t(currentPlayer.name) }}, 
+                { key: 'logs.turnStart', params: { turn: newTurn, playerName: t(state.players[nextPlayerId].name) }}
+            ]
         };
-        return checkWinCondition(nextState, state.currentPlayerId);
+        return checkWinCondition(nextState, state.currentPlayerId, t);
     }
       
     case 'CPU_PERFORM_ACTION': {
-        const move = calculateBestCpuMove(state);
+        const { t } = action;
+        const move = calculateBestCpuMove(state, t);
         if (!move) {
              const actionLimit = state.turn === 1 ? Infinity : 2;
              if (state.actionsTaken < actionLimit) {
-                return { ...state, log: [...state.log, `Turn ${state.turn} (CPU Opponent): Takes no action.`], actionsTaken: state.actionsTaken + 1 };
+                return { ...state, log: [...state.log, { key: 'logs.cpuNoAction', params: { turn: state.turn } }], actionsTaken: state.actionsTaken + 1 };
              }
              return state;
         }
         const effect: AwaitingTargetInfo = { card: move.card, sourcePlayerId: PLAYER2_ID, targetsAcquired: move.targets, actionNumber: state.actionsTaken + 1 };
-        return applyCardEffect(state, effect);
+        return applyCardEffect(state, effect, t);
     }
 
     default: return state;
   }
 };
 
-const useCpuTurn = (gameState: GameState, dispatch: React.Dispatch<GameAction>) => {
+const useCpuTurn = (gameState: GameState, dispatch: React.Dispatch<GameAction>, t: (key: string, params?: any) => string) => {
     const { currentPlayerId, gamePhase, winner, awaitingTarget, isCpuThinking, actionsTaken } = gameState;
 
     useEffect(() => {
@@ -532,14 +561,14 @@ const useCpuTurn = (gameState: GameState, dispatch: React.Dispatch<GameAction>) 
             if (gamePhase === GamePhase.Player2Setup) {
                 if (!isCpuThinking) dispatch({ type: 'CPU_THINKING_START' });
 
-                const move = calculateBestCpuMove(gameState);
+                const move = calculateBestCpuMove(gameState, t);
                 if (move && move.score > 5) { // Threshold for a good setup move
-                    dispatch({ type: 'CPU_PERFORM_ACTION' });
+                    dispatch({ type: 'CPU_PERFORM_ACTION', t });
                 } else {
                     if (actionsTaken === 0) {
-                        dispatch({ type: 'LOG_MESSAGE', message: `CPU makes no setup moves.` });
+                        dispatch({ type: 'LOG_MESSAGE', messageKey: 'logs.cpuNoSetup' });
                     }
-                    dispatch({ type: 'END_TURN' });
+                    dispatch({ type: 'END_TURN', t });
                     dispatch({ type: 'CPU_THINKING_END' });
                 }
             } else if (gamePhase === GamePhase.Player2Turn) {
@@ -548,9 +577,9 @@ const useCpuTurn = (gameState: GameState, dispatch: React.Dispatch<GameAction>) 
                 }
                 
                 if (actionsTaken < 2) {
-                    dispatch({ type: 'CPU_PERFORM_ACTION' });
+                    dispatch({ type: 'CPU_PERFORM_ACTION', t });
                 } else {
-                    dispatch({ type: 'END_TURN' });
+                    dispatch({ type: 'END_TURN', t });
                     dispatch({ type: 'CPU_THINKING_END' });
                 }
             }
@@ -558,26 +587,27 @@ const useCpuTurn = (gameState: GameState, dispatch: React.Dispatch<GameAction>) 
         
         return () => clearTimeout(handle);
 
-    }, [gameState, dispatch]);
+    }, [gameState, dispatch, t]);
 };
 
 
-export const useGameLogic = (settings: GameSettings) => {
+export const useGameLogic = (settings: GameSettings, t: (key: string, params?: any) => string) => {
+  // We pass a dummy 't' function initially. The real one comes from the START_GAME action.
   const [gameState, dispatch] = useReducer(gameReducer, settings, createInitialGameState);
 
-  useCpuTurn(gameState, dispatch);
+  useCpuTurn(gameState, dispatch, t);
 
   const selectCard = useCallback((card: CardData) => {
     if(gameState.currentPlayerId !== PLAYER1_ID) return;
     const actionLimit = gameState.turn === 1 ? Infinity : 2;
     if(gameState.actionsTaken < actionLimit) {
-        dispatch({ type: 'SELECT_CARD', card, playerId: PLAYER1_ID });
+        dispatch({ type: 'SELECT_CARD', card, playerId: PLAYER1_ID, t });
     }
-  }, [gameState.currentPlayerId, gameState.actionsTaken, gameState.turn]);
+  }, [gameState.currentPlayerId, gameState.actionsTaken, gameState.turn, t]);
 
   const selectQubit = useCallback((playerId: string, qubitId: number) => {
-    dispatch({ type: 'SELECT_QUBIT', playerId, qubitId });
-  }, []);
+    dispatch({ type: 'SELECT_QUBIT', playerId, qubitId, t });
+  }, [t]);
   
   const cancelTarget = useCallback(() => {
     dispatch({ type: 'CANCEL_TARGET' });
@@ -585,8 +615,8 @@ export const useGameLogic = (settings: GameSettings) => {
 
   const endTurn = useCallback(() => {
      if(gameState.currentPlayerId !== PLAYER1_ID || gameState.awaitingTarget) return;
-    dispatch({ type: 'END_TURN' });
-  }, [gameState.currentPlayerId, gameState.awaitingTarget]);
+    dispatch({ type: 'END_TURN', t });
+  }, [gameState.currentPlayerId, gameState.awaitingTarget, t]);
 
   return { gameState, dispatch, selectCard, selectQubit, endTurn, cancelTarget };
 };

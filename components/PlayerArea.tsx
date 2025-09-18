@@ -10,6 +10,7 @@ interface PlayerAreaProps {
   onSelectQubit: (playerId: string, qubitId: number) => void;
   awaitingTarget: AwaitingTargetInfo | null;
   gameState: GameState;
+  t: (key: string, params?: any) => string;
 }
 
 const InfoDisplay: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
@@ -20,18 +21,18 @@ const InfoDisplay: React.FC<{ label: string; value: string | number }> = ({ labe
 );
 
 
-export const PlayerArea: React.FC<PlayerAreaProps> = ({ player, isOpponent, onSelectQubit, awaitingTarget, gameState }) => {
+export const PlayerArea: React.FC<PlayerAreaProps> = ({ player, isOpponent, onSelectQubit, awaitingTarget, gameState, t }) => {
   const qubitCount = gameState.settings.qubitCount;
 
   return (
     <div className={`flex items-center justify-between w-full p-2 rounded-lg transition-all duration-300 ${isOpponent ? 'flex-row-reverse' : ''}`}>
       <div className={`flex gap-2 md:gap-4 items-center ${isOpponent ? 'flex-row-reverse' : ''}`}>
         <div className="flex flex-col gap-2">
-            <InfoDisplay label="Deck" value={player.deck.length} />
+            <InfoDisplay label={t('playerArea.deck')} value={player.deck.length} />
         </div>
          <div className="flex flex-col gap-2 items-center">
-            <h2 className="text-lg md:text-2xl font-bold text-gray-300">{player.name}</h2>
-            {!isOpponent && <InfoDisplay label="Mana" value={`${player.mana}/${player.maxMana}`} />}
+            <h2 className="text-lg md:text-2xl font-bold text-gray-300">{t(player.name)}</h2>
+            {!isOpponent && <InfoDisplay label={t('playerArea.mana')} value={`${player.mana}/${player.maxMana}`} />}
         </div>
       </div>
       
@@ -39,7 +40,8 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({ player, isOpponent, onSe
         {Array.from({ length: qubitCount }).map((_, qubitId) => {
           const displayState = getDisplayStateForQubit(player.stateVector, qubitId, qubitCount);
           const targetIndex = awaitingTarget?.targetsAcquired.findIndex(t => t.playerId === player.id && t.qubitId === qubitId);
-          const selectedRole = (targetIndex !== -1 && awaitingTarget?.card.roles) ? awaitingTarget.card.roles[targetIndex!] : undefined;
+          const selectedRoleKey = (targetIndex !== -1 && targetIndex !== undefined && awaitingTarget?.card.roles) ? awaitingTarget.card.roles[targetIndex] : undefined;
+          const selectedRole = selectedRoleKey ? t(selectedRoleKey) : undefined;
 
           return (
             <QubitDisplay
@@ -51,6 +53,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({ player, isOpponent, onSe
               isValidTarget={isValidTarget(player.id, qubitId, awaitingTarget, gameState)}
               isOpponent={isOpponent}
               selectedRole={selectedRole}
+              t={t}
             />
           );
         })}

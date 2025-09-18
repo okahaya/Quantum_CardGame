@@ -9,9 +9,10 @@ interface CardDisplayProps {
   isPreview?: boolean;
   cardViewMode: 'basic' | 'advanced';
   isSelected?: boolean;
+  t: (key: string, params?: any) => string;
 }
 
-export const CardDisplay: React.FC<CardDisplayProps> = ({ card, isPlayable, onClick, isPreview = false, cardViewMode, isSelected = false }) => {
+export const CardDisplay: React.FC<CardDisplayProps> = ({ card, isPlayable, onClick, isPreview = false, cardViewMode, isSelected = false, t }) => {
   const cardTypeColor = {
     'single': 'bg-blue-800',
     'two': 'bg-green-800',
@@ -53,13 +54,13 @@ export const CardDisplay: React.FC<CardDisplayProps> = ({ card, isPlayable, onCl
       className={finalClasses}
     >
       <div className="flex justify-between items-start">
-        <h3 className="font-bold text-xs md:text-sm text-white">{card.name}</h3>
+        <h3 className="font-bold text-xs md:text-sm text-white">{t(card.name)}</h3>
         <div className={`shrink-0 rounded-full bg-cyan-500 flex items-center justify-center font-bold text-black border-2 border-black ${isPreview ? 'w-8 h-8 text-lg' : 'w-6 h-6 text-base'}`}>
           {card.cost}
         </div>
       </div>
       
-      {cardViewMode === 'basic' && <p className={`text-gray-300 my-1 md:my-2 ${isPreview ? 'text-sm' : 'text-xs'}`}>{card.description}</p>}
+      {cardViewMode === 'basic' && <p className={`text-gray-300 my-1 md:my-2 ${isPreview ? 'text-sm' : 'text-xs'}`}>{t(card.description)}</p>}
       
       {cardViewMode === 'advanced' && (
         <div className="flex-grow flex items-center justify-center">
@@ -68,7 +69,7 @@ export const CardDisplay: React.FC<CardDisplayProps> = ({ card, isPlayable, onCl
       )}
 
       <div className={`text-xs text-center p-1 rounded-md text-white font-semibold ${cardTypeColor[card.type]}`}>
-        {card.type}-Qubit Gate
+        {t(`cardDisplay.${card.type}`)}
       </div>
     </div>
   );

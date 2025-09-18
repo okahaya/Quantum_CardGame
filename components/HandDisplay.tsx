@@ -13,9 +13,10 @@ interface HandDisplayProps {
   selectedCard: CardData | undefined | null;
   onCancelTarget: () => void;
   actionsTaken: number;
+  t: (key: string, params?: any) => string;
 }
 
-export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, isSetupPhase, onSelectCard, cardViewMode, selectedCard, onCancelTarget, actionsTaken }) => {
+export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentPlayer, isSetupPhase, onSelectCard, cardViewMode, selectedCard, onCancelTarget, actionsTaken, t }) => {
 
   return (
     <div className="w-full h-full flex items-center">
@@ -41,6 +42,7 @@ export const HandDisplay: React.FC<HandDisplayProps> = ({ hand, mana, isCurrentP
                   onClick={handleClick}
                   cardViewMode={cardViewMode}
                   isSelected={isSelected}
+                  t={t}
                 />
               </div>
             );

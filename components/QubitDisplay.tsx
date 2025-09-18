@@ -10,6 +10,7 @@ interface QubitDisplayProps {
   isValidTarget: boolean;
   isOpponent: boolean;
   selectedRole?: string;
+  t: (key: string, params?: any) => string;
 }
 
 const stateStyles: { [key in QubitDisplayState]: { color: string; shadow: string; animation?: string } } = {
@@ -18,7 +19,7 @@ const stateStyles: { [key in QubitDisplayState]: { color: string; shadow: string
   [QubitDisplayState.Superposition]: { color: 'bg-purple-500', shadow: 'shadow-purple-400', animation: 'animate-pulse' }
 };
 
-export const QubitDisplay: React.FC<QubitDisplayProps> = ({ qubitId, displayState, playerId, onSelectQubit, isValidTarget, isOpponent, selectedRole }) => {
+export const QubitDisplay: React.FC<QubitDisplayProps> = ({ qubitId, displayState, playerId, onSelectQubit, isValidTarget, isOpponent, selectedRole, t }) => {
   const styles = stateStyles[displayState];
 
   const getRingClasses = () => {
@@ -33,9 +34,9 @@ export const QubitDisplay: React.FC<QubitDisplayProps> = ({ qubitId, displayStat
   
   const getRoleLabel = () => {
       if (!selectedRole) return null;
-      if (selectedRole.toLowerCase().includes('control')) return 'C';
-      if (selectedRole.toLowerCase().includes('target')) return 'T';
-      if (selectedRole.toLowerCase().includes('qubit')) return selectedRole.split(' ')[1]; // 'A' or 'B'
+      if (selectedRole.toLowerCase().includes('control') || selectedRole.includes('制御')) return 'C';
+      if (selectedRole.toLowerCase().includes('target') || selectedRole.includes('対象')) return 'T';
+      if (selectedRole.toLowerCase().includes('qubit') || selectedRole.includes('量子ビット')) return selectedRole.split(' ')[1] || selectedRole.split('')[1]; // 'A' or 'B'
       return selectedRole[0];
   }
 
@@ -64,7 +65,7 @@ export const QubitDisplay: React.FC<QubitDisplayProps> = ({ qubitId, displayStat
             </div>
         )}
       </div>
-      <span className="text-xs md:text-sm text-gray-400">{isOpponent ? 'Opp' : 'Your'} Q{qubitId + 1}</span>
+      <span className="text-xs md:text-sm text-gray-400">{t(isOpponent ? 'qubitDisplay.opp' : 'qubitDisplay.your')} Q{qubitId + 1}</span>
     </div>
   );
 };

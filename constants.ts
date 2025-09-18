@@ -2,13 +2,13 @@
 import { CardData } from './types';
 
 export const ALL_CARDS: CardData[] = [
-  { id: 'h', name: 'Hadamard (H)', symbol: 'H', description: 'Puts a target qubit into a superposition state.', cost: 1, type: 'single', targets: 1 },
-  { id: 'x', name: 'Pauli-X (X)', symbol: 'X', description: 'Flips a target qubit\'s state (|0⟩ ↔ |1⟩).', cost: 1, type: 'single', targets: 1 },
-  { id: 'z', name: 'Pauli-Z (Z)', symbol: 'Z', description: 'Flips the phase of a target qubit.', cost: 1, type: 'single', targets: 1 },
-  { id: 'cnot', name: 'CNOT', symbol: 'CNOT', description: 'Uses a control qubit to flip a target qubit.', cost: 2, type: 'two', targets: 2, roles: ['Control', 'Target'] },
-  { id: 'swap', name: 'SWAP', symbol: 'SWAP', description: 'Swaps the state of two target qubits.', cost: 3, type: 'two', targets: 2, roles: ['Qubit A', 'Qubit B'] },
-  { id: 'measure', name: 'Measurement', symbol: 'M', description: 'Measures a qubit, collapsing its state to |0⟩ or |1⟩.', cost: 2, type: 'single', targets: 1 },
-  { id: 'toffoli', name: 'Toffoli', symbol: 'CCNOT', description: 'Uses two control qubits to flip a target qubit.', cost: 3, type: 'three', targets: 3, roles: ['Control 1', 'Control 2', 'Target'] },
+  { id: 'h', name: 'cards.h_name', symbol: 'H', description: 'cards.h_desc', cost: 1, type: 'single', targets: 1 },
+  { id: 'x', name: 'cards.x_name', symbol: 'X', description: 'cards.x_desc', cost: 1, type: 'single', targets: 1 },
+  { id: 'z', name: 'cards.z_name', symbol: 'Z', description: 'cards.z_desc', cost: 1, type: 'single', targets: 1 },
+  { id: 'cnot', name: 'cards.cnot_name', symbol: 'CNOT', description: 'cards.cnot_desc', cost: 2, type: 'two', targets: 2, roles: ['cardRoles.control', 'cardRoles.target'] },
+  { id: 'swap', name: 'cards.swap_name', symbol: 'SWAP', description: 'cards.swap_desc', cost: 3, type: 'two', targets: 2, roles: ['cardRoles.qubitA', 'cardRoles.qubitB'] },
+  { id: 'measure', name: 'cards.measure_name', symbol: 'M', description: 'cards.measure_desc', cost: 2, type: 'single', targets: 1 },
+  { id: 'toffoli', name: 'cards.toffoli_name', symbol: 'CCNOT', description: 'cards.toffoli_desc', cost: 3, type: 'three', targets: 3, roles: ['cardRoles.control1', 'cardRoles.control2', 'cardRoles.target'] },
 ];
 
 export const INITIAL_DECK_TEMPLATE: CardData[] = [

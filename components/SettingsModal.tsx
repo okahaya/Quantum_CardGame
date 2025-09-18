@@ -7,9 +7,10 @@ interface SettingsModalProps {
     onClose: () => void;
     onSave: (settings: GameSettings) => void;
     initialSettings: GameSettings;
+    t: (key: string) => string;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, initialSettings }) => {
+export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSave, initialSettings, t }) => {
     const [settings, setSettings] = useState<GameSettings>(initialSettings);
 
     if (!isOpen) return null;
@@ -33,11 +34,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
             <div className="bg-gray-800 border-2 border-cyan-500 rounded-lg p-6 md:p-8 shadow-2xl shadow-cyan-500/40 w-11/12 max-w-md text-white">
-                <h2 className="text-2xl md:text-3xl font-bold text-cyan-400 mb-6 text-center">Settings</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-cyan-400 mb-6 text-center">{t('settings.title')}</h2>
 
                 {/* Qubit Count Slider */}
                 <div className="mb-6">
-                    <label htmlFor="qubit-slider" className="block text-lg mb-2">Qubit Count: <span className="font-bold text-cyan-300">{settings.qubitCount}</span></label>
+                    <label htmlFor="qubit-slider" className="block text-lg mb-2">{t('settings.qubitCount')}<span className="font-bold text-cyan-300">{settings.qubitCount}</span></label>
                     <input
                         id="qubit-slider"
                         type="range"
@@ -55,7 +56,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 {/* Card View Mode Toggle */}
                 <div className="mb-6">
                     <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-lg">Advanced Card View <span className="text-sm text-gray-400">(Symbols only)</span></span>
+                        <span className="text-lg">{t('settings.advCardView')} <span className="text-sm text-gray-400">{t('settings.advCardViewDesc')}</span></span>
                         <div className="relative">
                             <input type="checkbox" className="sr-only" checked={settings.cardViewMode === 'advanced'} onChange={handleViewModeChange} />
                             <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
@@ -67,7 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                  {/* Debug Mode Toggle */}
                 <div className="mb-8">
                     <label className="flex items-center justify-between cursor-pointer">
-                        <span className="text-lg">Debug Mode</span>
+                        <span className="text-lg">{t('settings.debugMode')}</span>
                         <div className="relative">
                             <input type="checkbox" className="sr-only" checked={settings.debugMode} onChange={handleDebugModeChange} />
                             <div className="block bg-gray-600 w-14 h-8 rounded-full"></div>
@@ -76,20 +77,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                     </label>
                 </div>
                 
-                <p className="text-xs text-center text-yellow-400 mb-4">Note: Changing settings will restart the current game.</p>
+                <p className="text-xs text-center text-yellow-400 mb-4">{t('settings.note')}</p>
                 
                 <div className="flex justify-between gap-4">
                      <button
                         onClick={onClose}
                         className="w-full px-6 py-3 bg-gray-600 hover:bg-gray-500 font-bold rounded-lg transition-transform transform hover:scale-105"
                     >
-                        Cancel
+                        {t('settings.cancel')}
                     </button>
                     <button
                         onClick={handleSave}
                         className="w-full px-6 py-3 bg-cyan-600 hover:bg-cyan-500 font-bold rounded-lg transition-transform transform hover:scale-105"
                     >
-                        Save & Restart
+                        {t('settings.save')}
                     </button>
                 </div>
             </div>

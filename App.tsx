@@ -7,23 +7,30 @@ import { GameLogDisplay } from './components/GameLogDisplay';
 import { HomeScreen } from './components/HomeScreen';
 import { SettingsModal } from './components/SettingsModal';
 import { GameLogScreen } from './components/GameLogScreen';
-import { GameSettings } from './types';
+import { RulesScreen } from './components/RulesScreen';
+import { GameSettings, LogEntry } from './types';
+import { useTranslations } from './hooks/useTranslations';
 import { FaCog } from 'react-icons/fa';
 
+export type Language = 'ja' | 'en';
+
 const App: React.FC = () => {
-  const [screen, setScreen] = useState<'HOME' | 'GAME' | 'LOG'>('HOME');
+  const [screen, setScreen] = useState<'HOME' | 'GAME' | 'LOG' | 'RULES'>('HOME');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [language, setLanguage] = useState<Language>('ja');
+  const { t } = useTranslations(language);
+  
   const [gameSettings, setGameSettings] = useState<GameSettings>({
     qubitCount: 3,
     cardViewMode: 'basic',
     debugMode: false,
   });
-  const [lastGameLog, setLastGameLog] = useState<string[]>([]);
+  const [lastGameLog, setLastGameLog] = useState<LogEntry[]>([]);
 
-  const { gameState, dispatch, selectCard, selectQubit, endTurn, cancelTarget } = useGameLogic(gameSettings);
+  const { gameState, dispatch, selectCard, selectQubit, endTurn, cancelTarget } = useGameLogic(gameSettings, t);
   
   const handleStartGame = () => {
-    dispatch({ type: 'START_GAME', settings: gameSettings });
+    dispatch({ type: 'START_GAME', settings: gameSettings, t });
     setScreen('GAME');
   };
   
@@ -36,7 +43,7 @@ const App: React.FC = () => {
     setGameSettings(newSettings);
     setIsSettingsOpen(false);
     if (screen === 'GAME') {
-        dispatch({ type: 'START_GAME', settings: newSettings });
+        dispatch({ type: 'START_GAME', settings: newSettings, t });
     }
   };
   
@@ -44,6 +51,10 @@ const App: React.FC = () => {
     if (lastGameLog.length > 0) {
       setScreen('LOG');
     }
+  }
+  
+  const toggleLanguage = () => {
+      setLanguage(prev => prev === 'ja' ? 'en' : 'ja');
   }
 
   if (screen === 'HOME') {
@@ -54,12 +65,17 @@ const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsOpen(true)}
           onViewLog={handleViewLog}
           hasLog={lastGameLog.length > 0}
+          onViewRules={() => setScreen('RULES')}
+          onToggleLanguage={toggleLanguage}
+          language={language}
+          t={t}
         />
         <SettingsModal
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           onSave={handleSaveSettings}
           initialSettings={gameSettings}
+          t={t}
         />
       </>
     );
@@ -71,8 +87,13 @@ const App: React.FC = () => {
             log={lastGameLog} 
             isDebugMode={gameSettings.debugMode}
             onBack={() => setScreen('HOME')}
+            t={t}
           />
       );
+  }
+
+  if (screen === 'RULES') {
+    return <RulesScreen onBack={() => setScreen('HOME')} t={t} />;
   }
 
   return (
@@ -102,15 +123,16 @@ const App: React.FC = () => {
             onEndTurn={endTurn}
             onCancelTarget={cancelTarget}
             cardViewMode={gameSettings.cardViewMode}
+            t={t}
           />
         </div>
         
         <aside className="w-full lg:w-[400px] lg:max-w-[400px] shrink-0 h-[40vh] lg:h-full flex flex-col gap-4">
-          <GameLogDisplay log={gameState.log} awaitingTargetPrompt={gameState.awaitingTarget?.prompt} />
+          <GameLogDisplay log={gameState.log} awaitingTargetPrompt={gameState.awaitingTarget?.prompt} t={t}/>
         </aside>
 
         {gameState.gamePhase === 'GAME_OVER' && gameState.winner && (
-          <GameOverModal winnerName={gameState.players[gameState.winner].name} onGoHome={handleGoHome} />
+          <GameOverModal winnerName={t(gameState.players[gameState.winner].name)} onGoHome={handleGoHome} t={t} />
         )}
 
         <SettingsModal
@@ -118,6 +140,7 @@ const App: React.FC = () => {
           onClose={() => setIsSettingsOpen(false)}
           onSave={handleSaveSettings}
           initialSettings={gameSettings}
+          t={t}
         />
       </main>
     </div>

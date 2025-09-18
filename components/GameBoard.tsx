@@ -13,9 +13,10 @@ interface GameBoardProps {
   onEndTurn: () => void;
   onCancelTarget: () => void;
   cardViewMode: 'basic' | 'advanced';
+  t: (key: string, params?: any) => string;
 }
 
-export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, onSelectQubit, onEndTurn, onCancelTarget, cardViewMode }) => {
+export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, onSelectQubit, onEndTurn, onCancelTarget, cardViewMode, t }) => {
   const { players, currentPlayerId, awaitingTarget, turn, isCpuThinking, actionsTaken } = gameState;
   const player1 = players[PLAYER1_ID];
   const player2 = players[PLAYER2_ID];
@@ -23,9 +24,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, o
   const isSetupPhase = turn === 1;
 
   const getTurnText = () => {
-      if (isCpuThinking) return 'CPU is thinking...';
-      if (isSetupPhase) return `${players[currentPlayerId].name}'s Preparation`;
-      return isPlayer1Turn ? `${player1.name}'s Turn` : `${player2.name}'s Turn`;
+      if (isCpuThinking) return t('gameBoard.cpuThinking');
+      const playerName = t(players[currentPlayerId].name);
+      if (isSetupPhase) return t('gameBoard.playerPrep', { playerName });
+      return t('gameBoard.playerTurn', { playerName });
   }
 
   const actionsRemaining = isSetupPhase ? '∞' : 2 - actionsTaken;
@@ -39,18 +41,19 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, o
             onSelectQubit={onSelectQubit}
             awaitingTarget={awaitingTarget}
             gameState={gameState}
+            t={t}
         />
 
         <div className="flex items-center justify-between gap-2 md:gap-4 my-2 border-y-2 border-cyan-800 py-2 px-1 md:px-2">
             <div className="flex flex-col text-center">
-                <div className="text-sm md:text-lg">Turn</div>
+                <div className="text-sm md:text-lg">{t('gameBoard.turn')}</div>
                 <div className="font-bold text-cyan-400 text-lg">{turn}</div>
             </div>
             <div className="text-md md:text-xl font-bold text-center text-yellow-300 min-w-[100px] md:min-w-[200px] truncate">
                 {getTurnText()}
             </div>
             <div className="flex flex-col text-center">
-                <div className="text-sm md:text-lg">Actions</div>
+                <div className="text-sm md:text-lg">{t('gameBoard.actions')}</div>
                 <div className="font-bold text-cyan-400 text-lg">{actionsRemaining}</div>
             </div>
             <button
@@ -58,7 +61,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, o
             disabled={currentPlayerId !== PLAYER1_ID || (awaitingTarget !== null)}
             className="px-4 md:px-6 py-2 bg-red-600 hover:bg-red-500 rounded-md shadow-lg transition-all duration-200 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:shadow-none text-white font-bold text-sm md:text-base"
             >
-            {isSetupPhase ? 'End Prep' : 'End Turn'}
+            {isSetupPhase ? t('gameBoard.endPrep') : t('gameBoard.endTurn')}
             </button>
         </div>
 
@@ -68,6 +71,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, o
             onSelectQubit={onSelectQubit}
             awaitingTarget={awaitingTarget}
             gameState={gameState}
+            t={t}
         />
         
         <div className="mt-auto pt-4 h-44 md:h-52">
@@ -81,6 +85,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ gameState, onSelectCard, o
               selectedCard={awaitingTarget?.card}
               onCancelTarget={onCancelTarget}
               actionsTaken={actionsTaken}
+              t={t}
             />
         </div>
     </div>
